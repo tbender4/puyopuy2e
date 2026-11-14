@@ -11,6 +11,8 @@ sys.path.insert(0, os.path.join(HERE, 'tools'))
 import romset, build
 
 OUT_NAMES = ('pp2e-17241.ic32', 'pp2e-17240.ic31')
+# the CRCs the puyopuy2e entry of mame2003-plus expects
+EXPECTED = {'pp2e-17241.ic32': 0x6a1c9865, 'pp2e-17240.ic31': 0x384bcad2, 'epr-17239.ic4': 0x020ff6ef}
 
 
 def main():
@@ -30,9 +32,13 @@ def main():
         for name, data in files:
             z.writestr(name, data)
     print('written', out)
+    ok = True
     for name, data in files:
-        print('  %-16s %7d  %08x  %s' % (name, len(data), zlib.crc32(data) & 0xffffffff,
-                                         hashlib.sha1(data).hexdigest()))
+        crc = zlib.crc32(data) & 0xffffffff
+        print('  %-16s %7d  %08x  %s' % (name, len(data), crc, hashlib.sha1(data).hexdigest()))
+        ok = ok and crc == EXPECTED[name]
+    print('CRCs match the mame2003-plus driver' if ok else
+          'WARNING: the CRCs differ from the ones the mame2003-plus driver expects')
 
 
 if __name__ == '__main__':
