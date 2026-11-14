@@ -5,7 +5,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, '..')
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(ROOT, 'text'))
-import font, text, script_en, gfx, titles, labels, logo, linkmsg
+import font, text, script_en, gfx, titles, labels, logo, linkmsg, levels
 
 
 def patch_file(name):
@@ -42,5 +42,6 @@ def build(prog):
     labels.apply_service(prog)
     end = linkmsg.apply(prog, streams, text.TEXT_AT + used, text.TEXT_END)
     print('join-in messages: %d bytes' % (end - text.TEXT_AT - used))
+    end = levels.apply(prog, streams, end, text.TEXT_END)
     streams.write()
     return prog
