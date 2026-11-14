@@ -55,13 +55,18 @@ class Streams:
         return self.new[addr]
 
     def write(self):
-        used = []
-        for addr, data in self.new.items():
-            old_end = lz.decompress(self.prog, addr)[1]
+        used, grown = [], []
+        for addr, data in self.new.items():         # first the ones that fit: what they
+            old_end = lz.decompress(self.prog, addr)[1]     # leave over becomes free space
             packed = lz.compress(bytes(data))
             if len(packed) <= old_end - addr:
-                self.prog[addr:addr + len(packed)] = packed
-                continue
+                self.prog[addr:old_end] = packed + b'\xff' * (old_end - addr - len(packed))
+                print('stream %06x: %d -> %d bytes' % (addr, old_end - addr, len(packed)))
+            else:
+                grown.append((addr, packed, old_end))
+        for addr, packed, old_end in grown:
+            self.prog[addr:old_end] = b'\xff' * (old_end - addr)    # its old place is free too
+            print('stream %06x: %d -> %d bytes, moved' % (addr, old_end - addr, len(packed)))
             at = free_space(self.prog, addr & ~0xffff, len(packed), used)
             if at is None:
                 raise SystemExit('stream %06x: no room for %d bytes in its bank' % (addr, len(packed)))
@@ -72,3 +77,41 @@ class Streams:
             used.append((at, at + len(packed)))
             for r in refs:
                 self.prog[r + 4:r + 6] = (at & 0xffff).to_bytes(2, 'big')
+
+
+def map_words(mapdata, off, count):
+    return [mapdata[off + 2 * i] << 8 | mapdata[off + 2 * i + 1] for i in range(count)]
+
+
+def replace_block(tiles, mapdata, off, width, height, img, row_stride=None, tile_bias=0):
+    """draws img (width*8 x height*8 pixel values) over the map block at off (rows of
+    width words, row_stride words apart): the block's own tiles (those no other word of
+    the map uses) are redrawn, identical 8x8 cells share a tile, empty cells use an empty
+    tile of the stream; the words keep their palette/priority bits"""
+    stride = row_stride or width
+    cells = [(r, c, off + 2 * (r * stride + c)) for r in range(height) for c in range(width)]
+    inside = {i for _, _, i in cells}
+    words = map_words(mapdata, 0, len(mapdata) // 2)
+    used_elsewhere = {w & 0x7ff for k, w in enumerate(words) if 2 * k not in inside}
+    pool = sorted({(mapdata[i] << 8 | mapdata[i + 1]) & 0x7ff for _, _, i in cells} - used_elsewhere)
+    pool = [t - tile_bias for t in pool]
+    n = len(tiles) // TILE
+    empty = next(t for t in range(n) if not any(tiles[t * TILE:(t + 1) * TILE]))
+    made = {}
+    for r, c, i in cells:
+        block = [row[c * 8:c * 8 + 8] for row in img[r * 8:r * 8 + 8]]
+        key = tuple(tuple(x) for x in block)
+        if not any(any(x) for x in block):
+            t = empty
+        elif key in made:
+            t = made[key]
+        else:
+            if not pool:
+                raise SystemExit('replace_block: not enough tiles')
+            t = pool.pop(0)
+            tile_put(tiles, t, block)
+            made[key] = t
+        word = (mapdata[i] << 8 | mapdata[i + 1]) & 0xe000
+        mapdata[i:i + 2] = (word | (t + tile_bias)).to_bytes(2, 'big')
+    for t in pool:
+        tile_put(tiles, t, [[0] * 8 for _ in range(8)])

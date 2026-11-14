@@ -75,6 +75,8 @@ def apply(streams):
     put_tiles(streams.get(0x91545), img, [list(range(0x14d, 0x155)), list(range(0x155, 0x15d))])
     apply_tower(streams)
     apply_gameover(streams)
+    apply_here(streams)
+    apply_entry(streams)
 
 
 def rows_order(first, width_tiles, height_tiles):
@@ -126,3 +128,43 @@ def apply_gameover(streams):
     # 0xcc655 at 0x3fc and 0x42c, tiles 0x35f-0x38b of stream 0xcca17 (VRAM tile 0x100 on)
     img = render(CONTINUE, 192, 16, 0xf, 0x1)
     blit_map(streams, 0xcca17, 0x100, range(0x25f, 0x28c), 0xcc655, [(0x3fc, 24), (0x42c, 24)], img)
+
+
+TINY = {        # 3x5 capitals for the tower's tiny "you are here" icon
+    'Y': ["#.#", "#.#", ".#.", ".#.", ".#."],
+    'O': ["###", "#.#", "#.#", "#.#", "###"],
+    'U': ["#.#", "#.#", "#.#", "#.#", "###"],
+    'A': [".#.", "#.#", "###", "#.#", "#.#"],
+    'R': ["##.", "#.#", "##.", "#.#", "#.#"],
+    'E': ["###", "#..", "##.", "#..", "###"],
+    'H': ["#.#", "#.#", "###", "#.#", "#.#"],
+}
+
+
+def apply_here(streams):
+    # ここにいる (the tower strip's marker of where Arle is): a 24x24 icon, 3x3 tiles from
+    # 0x1b of stream 0xc8503, column by column; white frame (f), dark inside (1)
+    img = [[0xf] * 24 for _ in range(24)]
+    for y in range(1, 23):
+        for x in range(1, 23):
+            img[y][x] = 1
+    for line, word in enumerate(("YOU", "ARE", "HERE")):
+        w = 4 * len(word) - 1
+        x0, y0 = (24 - w) // 2, 3 + 6 * line
+        for k, ch in enumerate(word):
+            for y, row in enumerate(TINY[ch]):
+                for x, c in enumerate(row):
+                    if c == '#':
+                        img[y0 + y][x0 + 4 * k + x] = 0xa
+    put_tiles(streams.get(0xc8503), img, sprite_order(0x1b, 3, 3, 1))
+
+
+ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets', 'gfx')
+
+
+def apply_entry(streams):
+    # 参加者募集中 over the entry screen: a 36 x 6 block at 0x2a4 of the map stream 0xff8d4,
+    # tiles of stream 0xca599 (the map holds the stream's tile numbers)
+    import png
+    img = png.read(os.path.join(ASSETS, 'players_wanted.png'))
+    gfx.replace_block(streams.get(0xca599), streams.get(0xff8d4), 0x2a4, 36, 6, img)
