@@ -110,6 +110,50 @@ page among them.
 
 ![all the English text pages](screenshots/all_text.png)
 
+## The fighters
+
+Every rival in the game, as `puyopuy2e` shows them (MAME): the profile pages before the
+match, each one when its text is complete, and the match that follows. The game picks
+the rival from the tower; for these pictures the rival was forced through the game's own
+debug variable (`0xff4810`, see the [notes](docs/notes.md)), so all of them were taken on
+the first floor (LEVEL 1, STAGE 1), with the rival's own stage.
+
+| Fighter | Profile and match |
+|---|---|
+| Will-o'-Wisp | ![Will-o'-Wisp](screenshots/fighters/01_will_o_wisp.png) |
+| Momomo | ![Momomo](screenshots/fighters/02_momomo.png) |
+| Nohoho | ![Nohoho](screenshots/fighters/03_nohoho.png) |
+| Nomi | ![Nomi](screenshots/fighters/04_nomi.png) |
+| Skeleton-T | ![Skeleton-T](screenshots/fighters/05_skeleton_t.png) |
+| Mini Zombie | ![Mini Zombie](screenshots/fighters/06_mini_zombie.png) |
+| Nasu Grave | ![Nasu Grave](screenshots/fighters/07_nasu_grave.png) |
+| Sukiyapodes | ![Sukiyapodes](screenshots/fighters/08_sukiyapodes.png) |
+| Samurai Mole | ![Samurai Mole](screenshots/fighters/09_samurai_mole.png) |
+| Mummy | ![Mummy](screenshots/fighters/10_mummy.png) |
+| Owlbear | ![Owlbear](screenshots/fighters/11_owlbear.png) |
+| Barometz | ![Barometz](screenshots/fighters/12_barometz.png) |
+| Banshee Trio | ![Banshee Trio](screenshots/fighters/13_banshee_trio.png) |
+| Fufufu | ![Fufufu](screenshots/fighters/14_fufufu.png) |
+| Cait Sith Twins | ![Cait Sith Twins](screenshots/fighters/15_cait_sith_twins.png) |
+| Zombie | ![Zombie](screenshots/fighters/16_zombie.png) |
+| Panotty | ![Panotty](screenshots/fighters/17_panotty.png) |
+| Sasoriman | ![Sasoriman](screenshots/fighters/18_sasoriman.png) |
+| Suketoudara | ![Suketoudara](screenshots/fighters/19_suketoudara.png) |
+| Uroko Sakanabito | ![Uroko Sakanabito](screenshots/fighters/20_uroko_sakanabito.png) |
+| Harpy | ![Harpy](screenshots/fighters/21_harpy.png) |
+| Parara | ![Parara](screenshots/fighters/22_parara.png) |
+| Dragon | ![Dragon](screenshots/fighters/23_dragon.png) |
+| Witch | ![Witch](screenshots/fighters/24_witch.png) |
+| Pakista | ![Pakista](screenshots/fighters/25_pakista.png) |
+| Draco Centaur | ![Draco Centaur](screenshots/fighters/26_draco_centaur.png) |
+| Rulue | ![Rulue](screenshots/fighters/27_rulue.png) |
+| Minotauros | ![Minotauros](screenshots/fighters/28_minotauros.png) |
+| Zoh Daimaoh | ![Zoh Daimaoh](screenshots/fighters/29_zoh_daimaoh.png) |
+| Mamono | ![Mamono](screenshots/fighters/30_mamono.png) |
+| Shezo Wegey | ![Shezo Wegey](screenshots/fighters/31_shezo_wegey.png) |
+| Satan | ![Satan](screenshots/fighters/32_satan.png) |
+| Masked Satan | ![Masked Satan](screenshots/fighters/33_masked_satan.png) |
+
 ## The ROM set
 
 Input, the chips of `puyopuy2.zip`:

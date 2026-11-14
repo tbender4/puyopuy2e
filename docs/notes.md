@@ -95,6 +95,15 @@ ones point at them.
 The service menu is in romaji; the words still in Japanese (SOUSAI, RULE HENKA, RANNYU)
 and MAX RENSA in the ending's playing record are replaced in place, same lengths.
 
+## Rivals
+
+The rival of a stage is chosen at `0x4aac`: `0xffa101` (copied to `0xffa05d`) gets an
+entry of the table at `0x4b02`, 8 floors of rivals by character number (the order of the
+profiles: 0 Will-o'-Wisp ... 31 Satan, 32 Masked Satan). On the last floor Satan becomes
+Masked Satan (0x20) when the score is at least 180000 and `0xffa0ef` is 0. When
+`0xff4810` is not 0 the rival is `0xff4810 - 1` instead: a debug override, used for the
+fighter screenshots of the README.
+
 ## Debug
 
 TCRF documents a debug MODE SELECT menu (`maincpu.mb@002AF6=09`) with a stage select.
