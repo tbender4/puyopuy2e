@@ -93,19 +93,28 @@ def replace_block(tiles, mapdata, off, width, height, img, row_stride=None, tile
     width words, row_stride words apart): the block's own tiles (those no other word of
     the map uses) are redrawn, identical 8x8 cells share a tile, empty cells use an empty
     tile of the stream; the words keep their palette/priority bits"""
-    stride = row_stride or width
-    cells = [(r, c, off + 2 * (r * stride + c)) for r in range(height) for c in range(width)]
-    inside = {i for _, _, i in cells}
+    replace_blocks(tiles, mapdata, [(off, width, height, img, row_stride)], tile_bias,
+                   background, blank)
+
+
+def replace_blocks(tiles, mapdata, blocks, tile_bias=0, background=0, blank=None):
+    """replace_block for several blocks (off, width, height, img, row_stride) at once,
+    sharing the tiles that only these blocks use"""
+    cells = []
+    for off, width, height, img, row_stride in blocks:
+        stride = row_stride or width
+        cells += [(img, r, c, off + 2 * (r * stride + c)) for r in range(height) for c in range(width)]
+    inside = {i for _, _, _, i in cells}
     words = map_words(mapdata, 0, len(mapdata) // 2)
     used_elsewhere = {w & 0x7ff for k, w in enumerate(words) if 2 * k not in inside}
-    pool = sorted({(mapdata[i] << 8 | mapdata[i + 1]) & 0x7ff for _, _, i in cells} - used_elsewhere)
+    pool = sorted({(mapdata[i] << 8 | mapdata[i + 1]) & 0x7ff for _, _, _, i in cells} - used_elsewhere)
     pool = [t - tile_bias for t in pool]
     n = len(tiles) // TILE
     if blank is None:
         blank = next(t for t in range(n) if not any(tiles[t * TILE:(t + 1) * TILE]))
     empty = blank
     made = {}
-    for r, c, i in cells:
+    for img, r, c, i in cells:
         block = [row[c * 8:c * 8 + 8] for row in img[r * 8:r * 8 + 8]]
         key = tuple(tuple(x) for x in block)
         if all(v == background for x in block for v in x):

@@ -193,6 +193,13 @@ def apply_entry(streams):
     import png
     img = png.read(os.path.join(ASSETS, 'players_wanted.png'))
     gfx.replace_block(streams.get(0xca599), streams.get(0xff8d4), 0x2a4, 36, 6, img)
+    # ひとり / ふたり / さんにん / よにん + でぷよぷよ ("<n> players' Puyo Puyo") above it:
+    # 6-row blocks of the same map, put side by side on the screen
+    blocks = [(off, w, 6, png.read(os.path.join(ASSETS, name + '.png')), None)
+              for off, w, name in ((0x454, 12, 'count_1p'), (0x4e4, 12, 'count_2p'),
+                                   (0x574, 16, 'count_3p'), (0x634, 12, 'count_4p'),
+                                   (0x6c4, 20, 'puyo_puyo'))]
+    gfx.replace_blocks(streams.get(0xca599), streams.get(0xff8d4), blocks)
 
 
 SLOGAN = "COURAGE AND LOVE"

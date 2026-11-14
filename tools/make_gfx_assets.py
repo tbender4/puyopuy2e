@@ -50,6 +50,29 @@ def logo():
     print('logo_puyo')
 
 
+# the entry screen's "<how many> de Puyo Puyo": the number part (ひとり, ふたり, さんにん,
+# よにん: 96, 96, 128 and 96 pixels wide) drawn flush right, against "PUYO PUYO" (でぷよぷよ)
+COUNT = {'count_1p': ("1P", 96), 'count_2p': ("2P", 96), 'count_3p': ("3P", 128),
+         'count_4p': ("4P", 96)}
+PUYO_PUYO = ("PUYO PUYO", 160)
+
+
+def entry_words():
+    from PIL import ImageChops
+    for name, (text, w) in COUNT.items():
+        m = bigtext.mask(text, w, 48, 28, -1, dy=4)
+        right = m.getbbox()[2]
+        m = ImageChops.offset(m, w - 3 - right, 0)
+        png.write(os.path.join(OUT, name + '.png'), bigtext.indexed(m, 9, 0xe, 1), GREY)
+        print(name)
+    text, w = PUYO_PUYO
+    m = bigtext.mask(text, w, 48, 28, -1, dy=4)
+    left = m.getbbox()[0]
+    m = ImageChops.offset(m, 3 - left, 0)
+    png.write(os.path.join(OUT, 'puyo_puyo.png'), bigtext.indexed(m, 9, 0xe, 1), GREY)
+    print('puyo_puyo')
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     for name, (text, w, h, size, track, dy, fill, edge, outline) in BIG.items():
@@ -57,6 +80,7 @@ def main():
         png.write(os.path.join(OUT, name + '.png'), img, GREY)
         print(name)
     logo()
+    entry_words()
 
 
 if __name__ == '__main__':
