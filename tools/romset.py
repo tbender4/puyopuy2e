@@ -23,3 +23,12 @@ def read_program(zip_path):
 def split_program(prog):
     """(even, odd) EPROM images of a 1 MB program"""
     return bytes(prog[0::2]), bytes(prog[1::2])
+
+
+def read_sound(zip_path):
+    """the UPD7759 sample ROM, unchanged"""
+    name, crc = SOUND
+    data = zipfile.ZipFile(zip_path).read(name)
+    if zlib.crc32(data) & 0xffffffff != crc:
+        raise SystemExit('%s: wrong CRC (not the MAME puyopuy2 dump)' % name)
+    return data
