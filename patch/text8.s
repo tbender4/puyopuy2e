@@ -1,7 +1,7 @@
 | Puyo Puyo 2 English: the text engine draws 8x16 glyphs, one column of two tiles per code.
 | Replaces the routine at 0x17538 (the original draws 16x16 glyphs, two columns per code).
 |
-| In: d0.w the text code (0 = space), a0 the text task:
+| In: d0.w the text code (0: nothing drawn, the pause after a name), a0 the text task:
 |   $12(a0) VRAM address of the cursor (the name table), $16(a0) the font,
 |   $2c(a0) 4 x the glyphs already in VRAM (their codes at 0xffaa00), $38(a0) first tile.
 | A glyph is 16 bytes (16 rows of 8 pixels, MSB left) at font + code * 16; it gets two
@@ -73,16 +73,7 @@ name:   add.w   0x38(%a0),%d1
         addq.w  #2,0x12(%a0)            | one column on
         rts
 
-space:  move.w  0x12(%a0),%d5
-        move.w  #0x057a,%d1             | the box's background tile
-        ori.w   #0x700,%sr
-        jsr     0x1056
-        move.w  %d1,0xc00000
-        add.w   0xfff014,%d5
-        jsr     0x1056
-        move.w  %d1,0xc00000
-        andi.w  #0xf8ff,%sr
-        addq.w  #2,0x12(%a0)
+space:  addq.w  #2,0x12(%a0)            | code 0 (the profiles' pause): nothing drawn
         rts
 
 nib:    .word   0x0000,0x000f,0x00f0,0x00ff,0x0f00,0x0f0f,0x0ff0,0x0fff
