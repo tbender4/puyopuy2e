@@ -82,6 +82,7 @@ def apply(streams):
     apply_aids(streams)
     apply_chain(streams)
     apply_badge(streams)
+    apply_rules(streams)
 
 
 def rows_order(first, width_tiles, height_tiles):
@@ -297,3 +298,38 @@ def apply_badge(streams):
             if text[y][x]:
                 img[23 + y][12 + x] = text[y][x]
     gfx.write_block_pixels(tiles, tmap, 0x1f4, 10, 8, 10, img)
+
+
+# the rule select screen (map stream 0xfbd02, tiles of stream 0xfbf8f; the map holds the
+# stream's tile numbers): its title, 33 x 3 cells at 0x8c0, and the box's line for each
+# rule, 28 x 2 cells at 0x986 (ojama puyo score) and 24 x 2 cells at 0xa0e (rows 28 words
+# apart; the plain rule), both centred on screen, in white (f) with the words that matter
+# in yellow (c); [] mark the yellow part
+RULE_LINES = ((0x986, 28, "Nuisance Puyo [score points]!"), (0xa0e, 24, "Plain [Puyo Puyo] battle!"))
+
+
+def rule_line(text, cells):
+    import font
+    glyphs = font.font()
+    plain = text.replace('[', '').replace(']', '')
+    img = [[0] * (8 * cells) for _ in range(16)]
+    x = (8 * cells - 8 * len(plain)) // 2
+    colour = 0xf
+    for ch in text:
+        if ch in '[]':
+            colour = 0xc if ch == '[' else 0xf
+            continue
+        for y, row in enumerate(glyphs[ord(ch)]):
+            for i in range(8):
+                if row >> (7 - i) & 1:
+                    img[y][x + i] = colour
+        x += 8
+    return img
+
+
+def apply_rules(streams):
+    import png
+    title = png.read(os.path.join(ASSETS, 'choose_rule.png'))
+    blocks = [(0x8c0, 33, 3, title, None)]
+    blocks += [(off, cells, 2, rule_line(text, cells), 28) for off, cells, text in RULE_LINES]
+    gfx.replace_blocks(streams.get(0xfbf8f), streams.get(0xfbd02), blocks)

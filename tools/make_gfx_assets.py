@@ -73,6 +73,34 @@ def entry_words():
     print('puyo_puyo')
 
 
+# ルールを選んでください over the rule select screen: 264 x 24, green letters lit from
+# the top left (7 highlight, 5, 4 body, 3 lower edge) with a dark drop shadow (2)
+CHOOSE_RULE = ("CHOOSE A RULE!", 264, 24, 21)
+
+
+def rule_title():
+    text, w, h, size = CHOOSE_RULE
+    m = bigtext.mask(text, w, h, size, 0, dy=-1)
+    body = [[m.getpixel((x, y)) >= 110 for x in range(w)] for y in range(h)]
+    on = lambda x, y: 0 <= x < w and 0 <= y < h and body[y][x]
+    img = [[0] * w for _ in range(h)]
+    for y in range(h):
+        for x in range(w):
+            if on(x, y):
+                if not on(x, y - 1) or not on(x - 1, y):
+                    img[y][x] = 7
+                elif not on(x, y - 2) or not on(x - 2, y):
+                    img[y][x] = 5
+                elif not on(x, y + 1) or not on(x + 1, y):
+                    img[y][x] = 3
+                else:
+                    img[y][x] = 4
+            elif on(x - 1, y - 1) or on(x - 2, y - 2) or on(x - 1, y) or on(x, y - 1):
+                img[y][x] = 2
+    png.write(os.path.join(OUT, 'choose_rule.png'), img, GREY)
+    print('choose_rule')
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     for name, (text, w, h, size, track, dy, fill, edge, outline) in BIG.items():
@@ -81,6 +109,7 @@ def main():
         print(name)
     logo()
     entry_words()
+    rule_title()
 
 
 if __name__ == '__main__':
