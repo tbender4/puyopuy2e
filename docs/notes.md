@@ -42,3 +42,8 @@ original size exactly.
 Graphics: 参加者募集中, 参加, ひとりでぷよぷよ, 乱入可能, 相手をえらんでね, ここにいる,
 コンティニューするかい？ (game over), 全消し, the tutorial page titles, 勇気と愛気 under the
 Act Against AIDS logo, the title logo ぷよぷよ通.
+
+## Title logo
+
+The ぷよぷよ通 title logo is redrawn as "Puyo Puyo 2": the "Puyo Puyo" lettering from
+`assets/puyopuyo_logo.jpg`, followed by a blue "2" in the same rounded style.
