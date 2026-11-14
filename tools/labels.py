@@ -257,11 +257,12 @@ def apply_crossed(streams, plain):
             gfx.tile_put(tiles, crossed[r][c], out)
 
 
-SERVICE = (   # the service menu's Japanese words in romaji, same lengths
+SERVICE = (   # the service menu's (and the ending record's) Japanese words in romaji, same lengths
     (b"^3SOUSAI", b"^3OFFSET"),
     (b"^3RULE HENKA", b"^3RULE SET  "),
     (b"RANNYU OFF BUTTON", b"NO JOIN-IN BUTTON"),
     (b"^3RANNYU\xfe", b"^3JOINS \xfe"),
+    (b"^2MAX RENSA", b"^2MAX CHAIN"),
 )
 
 
