@@ -8,7 +8,7 @@
 
 The character profiles (shown before each match) and the attract mode's tutorial pages
 (…のひみつ) are at 0x1bf94-0x1d630, behind a table of 38 long pointers at 0x1bf0c."""
-FONT = 0x92c65 + 0x11 * 32 - 0x11 * 32   # glyph of code c at FONT + c * 32
+FONT = 0x92c65                  # glyph of code c at FONT + c * 32
 TEXT_START, TEXT_END = 0x1bf94, 0x1d630
 POINTERS = 0x1bf0c
 
