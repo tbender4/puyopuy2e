@@ -40,6 +40,7 @@ def build(prog):
     labels.apply(streams)
     logo.apply(prog, streams)
     labels.apply_service(prog)
+    labels.apply_yay(prog, streams)
     end = linkmsg.apply(prog, streams, text.TEXT_AT + used, text.TEXT_END)
     print('join-in messages: %d bytes' % (end - text.TEXT_AT - used))
     end = levels.apply(prog, streams, end, text.TEXT_END)

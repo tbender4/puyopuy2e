@@ -101,6 +101,30 @@ def rule_title():
     print('choose_rule')
 
 
+# やった over the winner's side after a match: 96 x 40, white (f) with an outline that
+# darkens outwards (b, 9, 4)
+YAY = ("YAY!", 96, 40, 33)
+
+
+def yay():
+    text, w, h, size = YAY
+    from PIL import ImageChops
+    m = bigtext.mask(text, w, h, size, 0, dy=0)
+    left, top, right, bottom = m.getbbox()
+    m = ImageChops.offset(m, (w - right - left) // 2, (h - bottom - top) // 2)
+    body = [[m.getpixel((x, y)) >= 110 for x in range(w)] for y in range(h)]
+    img = [[0xf if body[y][x] else 0 for x in range(w)] for y in range(h)]
+    for ring in (0xb, 0x9, 0x4):
+        prev = [r[:] for r in img]
+        for y in range(h):
+            for x in range(w):
+                if prev[y][x] == 0 and any(0 <= y + dy < h and 0 <= x + dx < w and prev[y + dy][x + dx]
+                                           for dy in (-1, 0, 1) for dx in (-1, 0, 1)):
+                    img[y][x] = ring
+    png.write(os.path.join(OUT, 'yay.png'), img, GREY)
+    print('yay')
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     for name, (text, w, h, size, track, dy, fill, edge, outline) in BIG.items():
@@ -110,6 +134,7 @@ def main():
     logo()
     entry_words()
     rule_title()
+    yay()
 
 
 if __name__ == '__main__':

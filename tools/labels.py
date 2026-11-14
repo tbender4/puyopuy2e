@@ -334,3 +334,31 @@ def apply_rules(streams):
     blocks = [(0x8c0, 33, 3, title, None)]
     blocks += [(off, cells, 2, rule_line(text, cells), 28) for off, cells, text in RULE_LINES]
     gfx.replace_blocks(streams.get(0xfbf8f), streams.get(0xfbd02), blocks)
+
+
+# やった on the winner's side after a match: sprites of stream 0x86f09 (VRAM tile 0x680),
+# its list of 7 sprites at 0x1e542 (count, then y, size and link, attribute, x) becomes 6:
+# three 4x4 over three 4x1, a 96 x 40 picture from the centre 48 left and 32 up
+YAY_LIST = 0x1e542
+
+
+def apply_yay(prog, streams):
+    import png, struct
+    img = png.read(os.path.join(ASSETS, 'yay.png'))
+    tiles = streams.get(0x86f09)
+    sprites = []
+    for k in range(3):
+        sprites.append((-32, 0x0f08, 16 * k, -48 + 32 * k, 4, 4))
+    for k in range(3):
+        sprites.append((0, 0x0c08, 48 + 4 * k, -48 + 32 * k, 4, 1))
+    data = struct.pack('>H', len(sprites))
+    for y, size, first, x, w, h in sprites:
+        data += struct.pack('>hHHh', y, size, 0x0680 + first, x)
+        for c in range(w):
+            for r in range(h):
+                cell = [row[x + 48 + 8 * c:x + 56 + 8 * c] for row in img[y + 32 + 8 * r:y + 40 + 8 * r]]
+                gfx.tile_put(tiles, first + h * c + r, cell)
+    assert len(data) <= 2 + 7 * 8
+    prog[YAY_LIST:YAY_LIST + len(data)] = data
+    for t in range(60, 69):
+        gfx.tile_put(tiles, t, [[0] * 8 for _ in range(8)])
