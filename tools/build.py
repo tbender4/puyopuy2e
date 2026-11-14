@@ -5,7 +5,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, '..')
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(ROOT, 'text'))
-import font, text, script_en
+import font, text, script_en, gfx, titles, labels
 
 
 def patch_file(name):
@@ -35,4 +35,8 @@ def build(prog):
     jmp(prog, 0x1720c, text.HOOKS + 0x10, 24)   # op 0b
     used = text.apply(prog, script_en.TEXT)
     print('English text: %d bytes' % used)
+    streams = gfx.Streams(prog)
+    titles.apply(streams)
+    labels.apply(streams)
+    streams.write()
     return prog

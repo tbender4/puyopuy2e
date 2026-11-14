@@ -74,11 +74,8 @@ name:   add.w   0x38(%a0),%d1
         rts
 
 space:  move.w  0x12(%a0),%d5
-        move.w  #0x057a,%d1             | the box's background tiles
-        btst    #1,%d5
-        beq.s   1f
-        move.w  #0x357d,%d1
-1:      ori.w   #0x700,%sr
+        move.w  #0x057a,%d1             | the box's background tile
+        ori.w   #0x700,%sr
         jsr     0x1056
         move.w  %d1,0xc00000
         add.w   0xfff014,%d5

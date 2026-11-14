@@ -1,0 +1,128 @@
+"""Small English labels drawn over Japanese ones, with the capitals of font/title_font.py:
+the letters filled with one colour and outlined with another, as the originals are."""
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'font'))
+import title_font, gfx
+
+
+def letter_mask(ch):
+    """rows of 0/1, trimmed to the letter's columns"""
+    if ch == ' ':
+        return [[0, 0] for _ in range(13)]
+    rows = [r for r in title_font.glyph(ch)[1:14]]
+    cols = [x for x in range(8) if any(r[x] for r in rows)]
+    return [r[cols[0]:cols[-1] + 1] for r in rows]
+
+
+def render(text, width, height, fill, outline, gap=1, shine=None):
+    """width x height pixel values: text centred, filled and outlined"""
+    masks = [letter_mask(ch) for ch in text]
+    w = sum(len(m[0]) for m in masks) + gap * (len(masks) - 1)
+    if w + 2 > width:
+        raise SystemExit('label %r: %d pixels, room for %d' % (text, w + 2, width))
+    img = [[0] * width for _ in range(height)]
+    x0, y0 = (width - w) // 2, (height - 13) // 2
+    x = x0
+    for m in masks:
+        for y, row in enumerate(m):
+            for dx, v in enumerate(row):
+                if v:
+                    img[y0 + y][x + dx] = fill
+        x += len(m[0]) + gap
+    out = [row[:] for row in img]
+    for y in range(height):
+        for x in range(width):
+            if img[y][x] == fill:
+                for dy in (-1, 0, 1):
+                    for dx in (-1, 0, 1):
+                        yy, xx = y + dy, x + dx
+                        if 0 <= yy < height and 0 <= xx < width and img[yy][xx] != fill:
+                            out[yy][xx] = outline
+    if shine is not None:                    # the top of each letter a lighter colour
+        for x in range(width):
+            for y in range(height):
+                if img[y][x] == fill:
+                    out[y][x] = shine
+                    break
+    return out
+
+
+def put_tiles(tiles, img, order):
+    """order[ty][tx] = the tile that gets the 8x8 block (tx, ty) of img"""
+    for ty, row in enumerate(order):
+        for tx, t in enumerate(row):
+            gfx.tile_put(tiles, t, [r[tx * 8:tx * 8 + 8] for r in img[ty * 8:ty * 8 + 8]])
+
+
+def sprite_order(first, width_tiles, height_tiles, sprites):
+    """tile numbers of sprites side by side, each width_tiles x height_tiles, column-major"""
+    order = [[0] * (width_tiles * sprites) for _ in range(height_tiles)]
+    for s in range(sprites):
+        for c in range(width_tiles):
+            for r in range(height_tiles):
+                order[r][s * width_tiles + c] = first + s * width_tiles * height_tiles + c * height_tiles + r
+    return order
+
+
+JOIN_IN = "JOIN IN!"
+
+
+def apply(streams):
+    # the 乱入可能 sign: in play (two 4x2 sprites, stream 0x900be tiles 0-15) and in the
+    # tutorial (stream 0x91545, 8 x 2 tiles from 0x14d, row by row)
+    img = render(JOIN_IN, 64, 16, 0xf, 0x1)
+    put_tiles(streams.get(0x900be), img, sprite_order(0, 4, 2, 2))
+    put_tiles(streams.get(0x91545), img, [list(range(0x14d, 0x155)), list(range(0x155, 0x15d))])
+    apply_tower(streams)
+    apply_gameover(streams)
+
+
+def rows_order(first, width_tiles, height_tiles):
+    """tile numbers of a block stored row by row"""
+    return [list(range(first + r * width_tiles, first + (r + 1) * width_tiles)) for r in range(height_tiles)]
+
+
+PICK = ("PICK", "YOUR RIVAL")
+
+
+def apply_tower(streams):
+    # 相手を / えらんでね on the tower screen (stream 0xc62d1): 6 x 2 tiles from 0x78, then
+    # 10 x 2 tiles from 0x84, in red (8) outlined (7), the top of each letter lighter (d)
+    tiles = streams.get(0xc62d1)
+    put_tiles(tiles, render(PICK[0], 48, 16, 8, 7, shine=0xd), rows_order(0x78, 6, 2))
+    put_tiles(tiles, render(PICK[1], 80, 16, 8, 7, shine=0xd), rows_order(0x84, 10, 2))
+
+
+def blit_map(streams, tiles_addr, tile_base, pool, map_addr, map_rows, img, blank=0):
+    """draws img through a tile map: map_rows = [(offset of the row in the map stream,
+    number of cells)]; each 8x8 cell of img with pixels gets a tile of pool (stream tile
+    numbers, VRAM tile = tile_base + n), empty cells the blank tile; the map words keep
+    their high bits (palette, priority)"""
+    tiles, tmap = streams.get(tiles_addr), streams.get(map_addr)
+    pool = list(pool)
+    for ty, (off, cells) in enumerate(map_rows):
+        for tx in range(cells):
+            block = [r[tx * 8:tx * 8 + 8] for r in img[ty * 8:ty * 8 + 8]]
+            i = off + 2 * tx
+            word = tmap[i] << 8 | tmap[i + 1]
+            if any(any(r) for r in block):
+                if not pool:
+                    raise SystemExit('blit_map: out of tiles')
+                t = pool.pop(0)
+                gfx.tile_put(tiles, t, block)
+                word = (word & 0xe000) | (tile_base + t)
+            else:
+                word = (word & 0xe000) | blank
+            tmap[i:i + 2] = word.to_bytes(2, 'big')
+    for t in pool:                              # the tiles left over: empty
+        gfx.tile_put(tiles, t, [[0] * 8 for _ in range(8)])
+
+
+CONTINUE = "CONTINUE?"
+
+
+def apply_gameover(streams):
+    # コンティニューするかい？ under the game over countdown: 24 x 2 cells, map in stream
+    # 0xcc655 at 0x3fc and 0x42c, tiles 0x35f-0x38b of stream 0xcca17 (VRAM tile 0x100 on)
+    img = render(CONTINUE, 192, 16, 0xf, 0x1)
+    blit_map(streams, 0xcca17, 0x100, range(0x25f, 0x28c), 0xcc655, [(0x3fc, 24), (0x42c, 24)], img)
