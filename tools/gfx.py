@@ -122,3 +122,37 @@ def replace_block(tiles, mapdata, off, width, height, img, row_stride=None, tile
         mapdata[i:i + 2] = (word | (t + tile_bias)).to_bytes(2, 'big')
     for t in pool:
         tile_put(tiles, t, [[background] * 8 for _ in range(8)])
+
+
+def block_pixels(tiles, mapdata, off, width, height, stride):
+    """the pixel values of a map block"""
+    img = [[0] * (8 * width) for _ in range(8 * height)]
+    for r in range(height):
+        for c in range(width):
+            e = map_words(mapdata, off + 2 * (r * stride + c), 1)[0]
+            px = tile_get(tiles, e & 0x7ff)
+            for y in range(8):
+                for x in range(8):
+                    img[8 * r + y][8 * c + x] = px[7 - y if e & 0x1000 else y][7 - x if e & 0x800 else x]
+    return img
+
+
+def write_block_pixels(tiles, mapdata, off, width, height, stride, img):
+    """writes back the cells of a map block whose pixels changed, into their own tiles
+    (each such tile must appear only once in the whole map)"""
+    words = map_words(mapdata, 0, len(mapdata) // 2)
+    count = {}
+    for w_ in words:
+        count[w_ & 0x7ff] = count.get(w_ & 0x7ff, 0) + 1
+    old = block_pixels(tiles, mapdata, off, width, height, stride)
+    for r in range(height):
+        for c in range(width):
+            cell = [row[8 * c:8 * c + 8] for row in img[8 * r:8 * r + 8]]
+            if cell == [row[8 * c:8 * c + 8] for row in old[8 * r:8 * r + 8]]:
+                continue
+            e = map_words(mapdata, off + 2 * (r * stride + c), 1)[0]
+            t = e & 0x7ff
+            if count[t] != 1:
+                raise SystemExit('write_block_pixels: tile %x is shared' % t)
+            px = [[cell[7 - y if e & 0x1000 else y][7 - x if e & 0x800 else x] for x in range(8)] for y in range(8)]
+            tile_put(tiles, t, px)

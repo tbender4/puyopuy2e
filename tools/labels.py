@@ -81,6 +81,7 @@ def apply(streams):
     apply_entry(streams)
     apply_aids(streams)
     apply_chain(streams)
+    apply_badge(streams)
 
 
 def rows_order(first, width_tiles, height_tiles):
@@ -263,3 +264,29 @@ def apply_service(prog):
         if i < 0 or prog.find(old, i + 1) >= 0:
             raise SystemExit('service text %r: not found once' % old)
         prog[i:i + len(new)] = new
+
+
+BADGE = "JOIN!"
+
+
+def apply_badge(streams):
+    # 参加 on the red badge the left rabbit holds on the entry screen: its map is 10 x 8
+    # cells at 0x1f4 of the map stream 0xff8d4 (rows 10 words apart), tiles of stream
+    # 0xca599. The kanji (white f, shaded a/b/4/5 on the red 3) are painted over with red,
+    # then the English drawn in white outlined with 5
+    tiles, tmap = streams.get(0xca599), streams.get(0xff8d4)
+    img = gfx.block_pixels(tiles, tmap, 0x1f4, 10, 8, 10)
+    for y in range(13, 50):
+        row = img[y]
+        inside = [x for x in range(9, 71) if row[x] == 3]      # (inside the rim)
+        if not inside:
+            continue
+        for x in range(inside[0], inside[-1] + 1):
+            if row[x] in (0xf, 0xa, 0xb, 0x4, 0x5):
+                row[x] = 3
+    text = render(BADGE, 56, 16, 0xf, 0x5)
+    for y in range(16):
+        for x in range(56):
+            if text[y][x]:
+                img[23 + y][12 + x] = text[y][x]
+    gfx.write_block_pixels(tiles, tmap, 0x1f4, 10, 8, 10, img)
