@@ -5,7 +5,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, '..')
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(ROOT, 'text'))
-import font, text, script_en, gfx, titles, labels
+import font, text, script_en, gfx, titles, labels, logo
 
 
 def patch_file(name):
@@ -38,5 +38,6 @@ def build(prog):
     streams = gfx.Streams(prog)
     titles.apply(streams)
     labels.apply(streams)
+    logo.apply(prog, streams)
     streams.write()
     return prog
