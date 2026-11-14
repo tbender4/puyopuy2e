@@ -83,7 +83,8 @@ def map_words(mapdata, off, count):
     return [mapdata[off + 2 * i] << 8 | mapdata[off + 2 * i + 1] for i in range(count)]
 
 
-def replace_block(tiles, mapdata, off, width, height, img, row_stride=None, tile_bias=0):
+def replace_block(tiles, mapdata, off, width, height, img, row_stride=None, tile_bias=0,
+                  background=0, blank=None):
     """draws img (width*8 x height*8 pixel values) over the map block at off (rows of
     width words, row_stride words apart): the block's own tiles (those no other word of
     the map uses) are redrawn, identical 8x8 cells share a tile, empty cells use an empty
@@ -96,12 +97,14 @@ def replace_block(tiles, mapdata, off, width, height, img, row_stride=None, tile
     pool = sorted({(mapdata[i] << 8 | mapdata[i + 1]) & 0x7ff for _, _, i in cells} - used_elsewhere)
     pool = [t - tile_bias for t in pool]
     n = len(tiles) // TILE
-    empty = next(t for t in range(n) if not any(tiles[t * TILE:(t + 1) * TILE]))
+    if blank is None:
+        blank = next(t for t in range(n) if not any(tiles[t * TILE:(t + 1) * TILE]))
+    empty = blank
     made = {}
     for r, c, i in cells:
         block = [row[c * 8:c * 8 + 8] for row in img[r * 8:r * 8 + 8]]
         key = tuple(tuple(x) for x in block)
-        if not any(any(x) for x in block):
+        if all(v == background for x in block for v in x):
             t = empty
         elif key in made:
             t = made[key]
@@ -114,4 +117,4 @@ def replace_block(tiles, mapdata, off, width, height, img, row_stride=None, tile
         word = (mapdata[i] << 8 | mapdata[i + 1]) & 0xe000
         mapdata[i:i + 2] = (word | (t + tile_bias)).to_bytes(2, 'big')
     for t in pool:
-        tile_put(tiles, t, [[0] * 8 for _ in range(8)])
+        tile_put(tiles, t, [[background] * 8 for _ in range(8)])

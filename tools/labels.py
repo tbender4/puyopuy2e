@@ -77,6 +77,7 @@ def apply(streams):
     apply_gameover(streams)
     apply_here(streams)
     apply_entry(streams)
+    apply_aids(streams)
 
 
 def rows_order(first, width_tiles, height_tiles):
@@ -168,3 +169,23 @@ def apply_entry(streams):
     import png
     img = png.read(os.path.join(ASSETS, 'players_wanted.png'))
     gfx.replace_block(streams.get(0xca599), streams.get(0xff8d4), 0x2a4, 36, 6, img)
+
+
+SLOGAN = "COURAGE AND LOVE"
+
+
+def apply_aids(streams):
+    # 勇気と愛気 under the Act Against AIDS logo: 20 x 3 cells at 0x604 of the screen map
+    # (stream 0x3eaff, 40 wide), tiles of stream 0x3ee26; grey (b) on white (f), in the
+    # thin capitals of the text font
+    import font
+    glyphs = font.font()
+    img = [[0xf] * 160 for _ in range(24)]
+    x0 = (160 - 8 * len(SLOGAN)) // 2
+    for k, ch in enumerate(SLOGAN):
+        for y, row in enumerate(glyphs[ord(ch)]):
+            for x in range(8):
+                if row >> (7 - x) & 1:
+                    img[4 + y][x0 + 8 * k + x] = 0xb
+    gfx.replace_block(streams.get(0x3ee26), streams.get(0x3eaff), 0x604, 20, 3, img,
+                      row_stride=40, background=0xf, blank=0x01)
