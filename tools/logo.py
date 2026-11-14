@@ -19,6 +19,9 @@ GROUPS = 9                      # ぷ, よ, 3 circles, 通, 3 sparkles
 EMPTY = 0xc0                    # 16 empty tiles from here (stream tile numbers; the stream has 0xd9)
 # a 56 x 48 half: 4x3 + 3x3 tiles on top, the same below
 LAYOUT = ((0, 0, 4, 3), (0, 32, 3, 3), (24, 0, 4, 3), (24, 32, 3, 3))
+# the two "Puyo" are drawn at x 16 and 128 (the original ぷよ's places): moved right by
+# SHIFT, the pair is centred on the screen (48-272)
+SHIFT = 32
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -61,7 +64,7 @@ def apply(prog, streams):
                     low = prog[e + 3]
                     size = (w - 1) << 2 | (h - 1)
                     prog[e:e + 8] = struct.pack('>HBBHH', y, size, low,
-                                                (attr & 0xf800) | (FIRST + starts[g][k]), x)
+                                                (attr & 0xf800) | (FIRST + starts[g][k]), x + SHIFT)
             else:
                 for k in range(n):
                     e = at + 2 + 8 * k + 4
