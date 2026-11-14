@@ -59,7 +59,7 @@ Hey dude! Help me out for a couple of :beers: or a :coffee:!<br/>
 
 | Part | State |
 |---|---|
-| Character profiles before each match (58 pages) | English, new 8x16 text engine and font |
+| Character profiles before each match: 33 characters, 58 pages | English, new 8x16 text engine and font (all pages below) |
 | Attract mode tutorial pages (15) and their titles | English |
 | Title logo ぷよぷよ通 | redrawn as "Puyo Puyo", the gold 2 stays |
 | Entry screen: 参加者募集中, 参加, ひとりでぷよぷよ ... | PLAYERS WANTED!, JOIN!, 1P/2P PUYO PUYO |
@@ -76,7 +76,8 @@ Hey dude! Help me out for a couple of :beers: or a :coffee:!<br/>
 
 Known limits:
 
-- The ending has no text; its playing record keeps the game's own romaji names of the
+- The ending is the same at every Difficulty setting (played to the end at Easy, Medium
+  and Hardest in MAME: same frames) and has no text; its playing record keeps the game's own romaji names of the
   rivals (SUKETOUDARA, SHEZO WEGEY, ...), already in Latin letters.
 - The link messages (two cabinets joined by a cable) cannot be seen in an emulator; they
   are checked by drawing them from the new ROM the way the game does.
@@ -101,6 +102,13 @@ Japanese arcade original on the left, `puyopuy2e` on the right (MAME).
 | Level select | ![](screenshots/level_jp.png) | ![](screenshots/level_en.png) |
 | Win | ![](screenshots/win_jp.png) | ![](screenshots/win_en.png) |
 | Continue | ![](screenshots/continue_jp.png) | ![](screenshots/continue_en.png) |
+
+Every English text page, drawn from the built ROM with its own font and layout
+(`tools/text_sheet.py`): the profiles of the 33 characters (a character's second page
+follows its first) and the tutorial pages, the TURN DIRECTION variant of the controls
+page among them.
+
+![all the English text pages](screenshots/all_text.png)
 
 ## The ROM set
 
@@ -148,6 +156,7 @@ are the big lettering. Only the Python 3 standard library is used.
 | `tools/levels.py` | the level select labels |
 | `tools/gfx.py` | tiles, maps, the compressed graphics streams and where they go |
 | `tools/lz.py` | the game's LZ format, unpacker and packer |
+| `tools/text_sheet.py` | draws every English page from a built `puyopuy2e.zip` (the sheet above) |
 | `tools/png.py` | reads and writes the PNGs |
 | `tools/romset.py` | the chips of the MAME set |
 | `tools/make_gfx_assets.py`, `tools/bigtext.py` | draw `assets/gfx` (maintainers only: Pillow and the Poppins Bold font) |
