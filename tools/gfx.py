@@ -49,6 +49,10 @@ class Streams:
         self.prog = prog
         self.new = {}           # original address -> new uncompressed data
 
+    def original(self, addr):
+        """the stream as it is in the original program"""
+        return lz.decompress(self.prog, addr)[0]
+
     def get(self, addr):
         if addr not in self.new:
             self.new[addr] = bytearray(lz.decompress(self.prog, addr)[0])

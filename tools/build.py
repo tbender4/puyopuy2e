@@ -39,5 +39,6 @@ def build(prog):
     titles.apply(streams)
     labels.apply(streams)
     logo.apply(prog, streams)
+    labels.apply_service(prog)
     streams.write()
     return prog

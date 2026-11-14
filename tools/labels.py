@@ -72,12 +72,15 @@ def apply(streams):
     # tutorial (stream 0x91545, 8 x 2 tiles from 0x14d, row by row)
     img = render(JOIN_IN, 64, 16, 0xf, 0x1)
     put_tiles(streams.get(0x900be), img, sprite_order(0, 4, 2, 2))
+    apply_crossed(streams, img)
     put_tiles(streams.get(0x91545), img, [list(range(0x14d, 0x155)), list(range(0x155, 0x15d))])
+    apply_allclear(streams)
     apply_tower(streams)
     apply_gameover(streams)
     apply_here(streams)
     apply_entry(streams)
     apply_aids(streams)
+    apply_chain(streams)
 
 
 def rows_order(first, width_tiles, height_tiles):
@@ -139,7 +142,27 @@ TINY = {        # 3x5 capitals for the tower's tiny "you are here" icon
     'R': ["##.", "#.#", "##.", "#.#", "#.#"],
     'E': ["###", "#..", "##.", "#..", "###"],
     'H': ["#.#", "#.#", "###", "#.#", "#.#"],
+    'C': ["###", "#..", "#..", "#..", "###"],
+    'I': ["###", ".#.", ".#.", ".#.", "###"],
+    'N': ["##.", "#.#", "#.#", "#.#", "#.#"],
 }
+
+
+def apply_chain(streams):
+    # れんさ next to the chain count in play: a 3x1 sprite, tiles 0x78-0x7a of stream
+    # 0x83f2b (VRAM 0x378); colour 6 with a dark (2) shadow, like the kana
+    img = [[0] * 24 for _ in range(8)]
+    x0 = 1
+    for k, ch in enumerate("CHAIN"):
+        for y, row in enumerate(TINY[ch]):
+            for x, c in enumerate(row):
+                if c == '#':
+                    xx, yy = x0 + 4 * k + x, 1 + y
+                    img[yy][xx] = 6
+                    for dy, dx in ((1, 0), (0, 1), (1, 1)):
+                        if img[yy + dy][xx + dx] == 0:
+                            img[yy + dy][xx + dx] = 2
+    put_tiles(streams.get(0x83f2b), img, [[0x78, 0x79, 0x7a]])
 
 
 def apply_here(streams):
@@ -189,3 +212,54 @@ def apply_aids(streams):
                     img[4 + y][x0 + 8 * k + x] = 0xb
     gfx.replace_block(streams.get(0x3ee26), streams.get(0x3eaff), 0x604, 20, 3, img,
                       row_stride=40, background=0xf, blank=0x01)
+
+
+ALL_CLEAR = "ALL CLEAR"
+
+
+def apply_allclear(streams):
+    # 全消し in the tutorial's ALL CLEAR page: the box inside is 12 x 3 cells at 0x270 of
+    # the map stream 0x45503 (rows 14 words apart), tiles of the tutorial stream 0x91545;
+    # yellow (a) outlined (1), the bottom of each letter darker (9)
+    img = [[0] * 96 for _ in range(8)] + render(ALL_CLEAR, 96, 16, 0xa, 0x1)
+    for x in range(96):          # (the text on cell rows 1 and 2 only: there are 20 tiles)
+        for y in range(23, -1, -1):
+            if img[y][x] == 0xa:
+                img[y][x] = 0x9
+                break
+    gfx.replace_block(streams.get(0x91545), streams.get(0x45503), 0x270, 12, 3, img,
+                      row_stride=14, blank=0x1c)
+
+
+def apply_crossed(streams, plain):
+    # the crossed-out 乱入可能 of the tutorial's JOINING IN page: its middle 6 x 2 tiles
+    # (0x19a-0x19f, 0x1a0-0x1a5 of stream 0x91545) are the sign's middle with a red X;
+    # the X (the pixels where they differ from the plain sign's tiles 0x14e-0x153,
+    # 0x156-0x15b) goes over the English sign
+    tiles = streams.get(0x91545)
+    crossed = [list(range(0x19a, 0x1a0)), list(range(0x1a0, 0x1a6))]
+    orig_plain = [list(range(0x14e, 0x154)), list(range(0x156, 0x15c))]
+    for r in range(2):
+        for c in range(6):
+            xp = gfx.tile_get(streams.original(0x91545), crossed[r][c])
+            pp = gfx.tile_get(streams.original(0x91545), orig_plain[r][c])
+            new = [row[8 + 8 * c:16 + 8 * c] for row in plain[8 * r:8 * r + 8]]
+            out = [[xp[y][x] if xp[y][x] != pp[y][x] else new[y][x] for x in range(8)] for y in range(8)]
+            gfx.tile_put(tiles, crossed[r][c], out)
+
+
+SERVICE = (   # the service menu's Japanese words in romaji, same lengths
+    (b"^3SOUSAI", b"^3OFFSET"),
+    (b"^3RULE HENKA", b"^3RULE SET  "),
+    (b"RANNYU OFF BUTTON", b"NO JOIN-IN BUTTON"),
+    (b"^3RANNYU\xfe", b"^3JOINS \xfe"),
+)
+
+
+def apply_service(prog):
+    for old, new in SERVICE:
+        assert len(old) == len(new)
+        i = prog.find(old)
+        if i < 0 or prog.find(old, i + 1) >= 0:
+            raise SystemExit('service text %r: not found once' % old)
+        prog[i:i + len(new)] = new
