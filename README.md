@@ -61,6 +61,7 @@ Hey dude! Help me out for a couple of :beers: or a :coffee:!<br/>
 |---|---|
 | Character profiles before each match: 33 characters, 58 pages | English, new 8x16 text engine and font (all pages below) |
 | Attract mode tutorial pages (15) and their titles | English |
+| JOINING IN tutorial page (linked cabinets only): 乱入するの？ / はい / いいえ | JOIN IN? / YES / NO |
 | Title logo ぷよぷよ通 | redrawn as "Puyo Puyo", the gold 2 stays |
 | Entry screen: 参加者募集中, 参加, ひとりでぷよぷよ ... | PLAYERS WANTED!, JOIN!, 1P/2P PUYO PUYO (centred) |
 | Entry screen: 2Pのスタートボタンを押してね over the rabbit still waiting | PUSH 2P START! (and 1P) |
@@ -75,15 +76,19 @@ Hey dude! Help me out for a couple of :beers: or a :coffee:!<br/>
 | Service menu romaji, ending record (MAX RENSA) | English |
 | ROM set `puyopuy2e`, driver entry | done; checked in MAME 0.264 and in the mame2003-plus core |
 | Full game, start to ending, 1 player and 2 players | played in MAME: every screen in English |
+| Two linked cabinets, 3 and 4 players | entry, join prompts, match and results checked with an emulated link (see below) |
 
 Known limits:
 
 - The ending is the same at every Difficulty setting (played to the end at Easy, Medium
   and Hardest in MAME: same frames) and has no text; its playing record keeps the game's own romaji names of the
   rivals (SUKETOUDARA, SHEZO WEGEY, ...), already in Latin letters.
-- The link messages and the four-player match (two cabinets joined by a cable) cannot be
-  seen in an emulator; they are checked by drawing them from the new ROM the way the game
-  does. Thanks to thomasbender for the four-player screenshots that showed what was left.
+- The link between two cabinets (the PUYO2Z80 communication board at `0x880100`) is not
+  emulated by MAME or mame2003-plus. The four-player screens were checked with two
+  instances of the core joined by a high-level stand-in for the board (a local test
+  harness, not part of the driver): entry screen, join prompts, four-player match,
+  results and the attract pages shown only when linked. Thanks to thomasbender for the
+  four-player screenshots that showed what was left.
 - The 3P PUYO PUYO line of a linked game sits a few pixels right of centre: its number
   block is wider and the PUYO PUYO block is shared by all four.
 
@@ -173,8 +178,8 @@ Output, the files of `puyopuy2e.zip`:
 
 | File | Size | CRC32 | SHA1 | From |
 |---|---|---|---|---|
-| pp2e-17241.ic32 | 524288 | 788b7ded | bede055ba58807aff3658bedec8220b0bf303135 | epr-17241.ic32, changed |
-| pp2e-17240.ic31 | 524288 | 68dcbc68 | b3e17be13a603762a0711a7d89dccb71136a3d2e | epr-17240.ic31, changed |
+| pp2e-17241.ic32 | 524288 | a006ea88 | 45f3f4ff421a20c446b4a93265d5ee344ff43354 | epr-17241.ic32, changed |
+| pp2e-17240.ic31 | 524288 | 01c1d7dc | 5fa8e483c9e1558a191ad2176d720c6f523d63c7 | epr-17240.ic31, changed |
 | epr-17239.ic4 | 524288 | 020ff6ef | 6095b8277b47a6fd7a9721f15a70ae5bf6be9b1a | copied |
 
 These names and CRCs are the ones the `puyopuy2e` driver entry of mame2003-plus expects

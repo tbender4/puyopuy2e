@@ -83,6 +83,7 @@ def apply(streams):
     apply_chain(streams)
     apply_badge(streams)
     apply_rules(streams)
+    apply_ask(streams)
 
 
 def rows_order(first, width_tiles, height_tiles):
@@ -325,6 +326,69 @@ def apply_service(prog):
 
 SIGN = ("PUSH {}P", "START!")
 SIGN_LISTS = {1: 0x2e8fc, 2: 0x2e91e}     # the sprite list of each variant
+
+
+ASK = ("JOIN IN?", "YES", "NO")
+ARROW = ["......#......",
+         ".....##......",
+         "....###......",
+         "...##########",
+         "..###########",
+         "...##########",
+         "....###......",
+         ".....##......",
+         "......#......"]
+
+
+def apply_ask(streams):
+    # The JOINING IN tutorial page (shown only on a linked cabinet) draws a small join
+    # prompt, 乱入するの？ / はい / いいえ and コレ pointing at はい: four blocks of the map stream
+    # 0x456fa (loaded to RAM 0xffb000, put on screen by 0x209c6): 12 x 2 cells at 0x1a4,
+    # 4 x 2 at 0x1d4, 6 x 2 at 0x1e4, 3 x 2 at 0x1fc, tiles of the tutorial stream 0x91545.
+    # 乱入 borrowed the 乱入可能 sign's tiles (0x14d-), now JOIN IN!, so it read "JOI"; the
+    # blocks are redrawn with tiles 0x175-0x196 (the rest of the prompt's own, used by
+    # nothing else while the tutorial is on), the text in white (f) outlined (1) and the
+    # word "this" an arrow
+    tiles, tmap = streams.get(0x91545), streams.get(0x456fa)
+    def left(img):
+        cols = [x for x in range(len(img[0])) if any(r[x] for r in img)]
+        s = cols[0] - 1
+        return [r[s:] + [0] * s for r in img]
+    arrow = [[0] * 24 for _ in range(16)]
+    for y, line in enumerate(ARROW):
+        for x, ch in enumerate(line):
+            if ch == '#':
+                arrow[3 + y][1 + x] = 0xf
+    for y in range(16):
+        for x in range(24):
+            if arrow[y][x] == 0 and any(0 <= y + dy < 16 and 0 <= x + dx < 24 and arrow[y + dy][x + dx] == 0xf
+                                        for dy in (-1, 0, 1) for dx in (-1, 0, 1)):
+                arrow[y][x] = 0x1
+    blocks = [(0x1a4, 12, left(render(ASK[0], 96, 16, 0xf, 0x1))),
+              (0x1d4, 4, left(render(ASK[1], 32, 16, 0xf, 0x1))),
+              (0x1e4, 6, left(render(ASK[2], 48, 16, 0xf, 0x1))),
+              (0x1fc, 3, arrow)]
+    pool = list(range(0x175, 0x197))
+    n = len(tiles) // gfx.TILE
+    blank = next(t for t in range(n) if not any(tiles[t * gfx.TILE:(t + 1) * gfx.TILE]))
+    made = {}
+    for off, w, img in blocks:
+        for r in range(2):
+            for c in range(w):
+                cell = [row[8 * c:8 * c + 8] for row in img[8 * r:8 * r + 8]]
+                key = tuple(map(tuple, cell))
+                if not any(any(row) for row in cell):
+                    t = blank
+                elif key in made:
+                    t = made[key]
+                else:
+                    if not pool:
+                        raise SystemExit('join prompt: not enough tiles')
+                    t = made[key] = pool.pop(0)
+                    gfx.tile_put(tiles, t, cell)
+                i = off + 2 * (r * w + c)
+                word = (tmap[i] << 8 | tmap[i + 1]) & 0xe000
+                tmap[i:i + 2] = (word | t).to_bytes(2, 'big')
 
 
 def apply_sign(prog, streams):
