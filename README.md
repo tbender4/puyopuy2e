@@ -178,8 +178,8 @@ Output, the files of `puyopuy2e.zip`:
 
 | File | Size | CRC32 | SHA1 | From |
 |---|---|---|---|---|
-| pp2e-17241.ic32 | 524288 | a006ea88 | 45f3f4ff421a20c446b4a93265d5ee344ff43354 | epr-17241.ic32, changed |
-| pp2e-17240.ic31 | 524288 | 01c1d7dc | 5fa8e483c9e1558a191ad2176d720c6f523d63c7 | epr-17240.ic31, changed |
+| pp2e-17241.ic32 | 524288 | 27a33b03 | 9fe6786c62d414c538fdb15c95af9dbc2b615afc | epr-17241.ic32, changed |
+| pp2e-17240.ic31 | 524288 | 7a55c0db | 4b0ac4897a69496457b5cc3aac31d06f5bfd1a01 | epr-17240.ic31, changed |
 | epr-17239.ic4 | 524288 | 020ff6ef | 6095b8277b47a6fd7a9721f15a70ae5bf6be9b1a | copied |
 
 These names and CRCs are the ones the `puyopuy2e` driver entry of mame2003-plus expects

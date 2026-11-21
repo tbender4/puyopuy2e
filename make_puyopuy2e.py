@@ -12,7 +12,7 @@ import romset, build
 
 OUT_NAMES = ('pp2e-17241.ic32', 'pp2e-17240.ic31')
 # the CRCs the puyopuy2e entry of mame2003-plus expects
-EXPECTED = {'pp2e-17241.ic32': 0xa006ea88, 'pp2e-17240.ic31': 0x01c1d7dc, 'epr-17239.ic4': 0x020ff6ef}
+EXPECTED = {'pp2e-17241.ic32': 0x27a33b03, 'pp2e-17240.ic31': 0x7a55c0db, 'epr-17239.ic4': 0x020ff6ef}
 
 
 def main():

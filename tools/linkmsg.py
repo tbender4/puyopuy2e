@@ -9,7 +9,7 @@ pointer to where the string goes on.
 
 The glyphs (stream 0x8cb5e, 32 glyphs, tiles 0x400 on with high byte 0x84) are redrawn as
 pairs of 8x16 letters, white (f) outlined in 1, and each original string is pointed at an
-English one written in free space."""
+English one written in free space, but NO / YES (0x19e30), written in place (IN_PLACE)."""
 import struct
 import font
 
@@ -29,9 +29,13 @@ STRINGS = {
     0x19df6: [(6, "JOINING IN!", 0)],
     0x19e00: [(10, "JOIN THE OTHER ONE?", 0)],
     0x19e14: [(10, "JOIN THE OTHER ONE TOO?", 0), (4, NEW, 0)],
-    0x19e30: [(14, "NO", 0), (18, "YES", 0)],       # (0x19e38, the second offset, is read
-    0x1b274: [(6, "LINK DOWN!", 1), (10, "CALL THE STAFF", 0)],   # by the game: kept)
+    0x19e30: [(14, "NO", 0), (18, "YES", 0)],
+    0x1b274: [(6, "LINK DOWN!", 1), (10, "CALL THE STAFF", 0)],
 }
+# Written in place, not redirected: the cursor (0x19cf8) redraws the chosen line in red
+# straight from 0x19e30 (NO) or 0x19e38 (YES), without following a 0xffff pointer.
+# Each line is padded with blank glyphs so it starts where the game reads it.
+IN_PLACE = {0x19e30: (0x19e30, 0x19e38, 0x19e40)}
 
 
 def offset(row, text, shift):
@@ -73,6 +77,8 @@ def apply(prog, streams, at, end):
         for _, text, shift in lines:
             for p in pairs(text, shift):
                 index.setdefault(p, len(index))
+    if IN_PLACE:
+        index.setdefault('  ', len(index))
     if len(index) > 32:
         raise SystemExit('linkmsg: %d glyphs, there are 32' % len(index))
     tiles = streams.get(GLYPHS)
@@ -85,7 +91,24 @@ def apply(prog, streams, at, end):
                     v = img[dy + y][dx + x]
                     data[y * 4 + x // 2] |= v << (4 if x % 2 == 0 else 0)
             tiles[(4 * g + q) * 32:(4 * g + q + 1) * 32] = data
+    for orig, starts in IN_PLACE.items():
+        data = bytearray()
+        for k, (row, text, shift) in enumerate(STRINGS[orig]):
+            line = struct.pack('>H', offset(row, text, shift)) + bytes([0x80, HIGH])
+            line += bytes(index[p] for p in pairs(text, shift))
+            room = starts[k + 1] - starts[k] - len(line) - 1
+            if room < 0:
+                raise SystemExit('linkmsg: %r does not fit at %#x' % (text, starts[k]))
+            last = k == len(STRINGS[orig]) - 1
+            # blank glyphs before fe keep the next line aligned; after ff the bytes are unused
+            line += bytes([index['  ']] * (0 if last else room)) + bytes([0xff if last else 0xfe])
+            data += line
+        prog[orig:orig + len(data)] = data
+        # the cursor reads the YES line's offset word here
+        assert prog[starts[1]:starts[1] + 2] == struct.pack('>H', offset(*STRINGS[orig][1]))
     for orig, lines in STRINGS.items():
+        if orig in IN_PLACE:
+            continue
         data = bytearray()
         for k, (row, text, shift) in enumerate(lines):
             if len(data) % 2:
