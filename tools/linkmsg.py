@@ -18,17 +18,27 @@ HIGH = 0x84
 
 NEW = "NEW CHALLENGER!"
 CANT = "CAN'T JOIN THE OTHER ONE"
-# original string: [(VRAM offset, text, half a glyph of space first)]
+# original string: [(row, text, half a glyph of space first)]; each line centred on the
+# 40-column screen (the originals all started at column 4), but NO / YES, which stay at
+# column 20 beside the two cabinets
+COLUMN = {"NO": 20, "YES": 20}
 STRINGS = {
-    0x19dc8: [(0x208, NEW, 0)],
-    0x19dd4: [(0x208, NEW, 0), (0x508, CANT, 0)],
-    0x19de0: [(0x508, CANT, 0)],
-    0x19df6: [(0x308, "JOINING IN!", 0)],
-    0x19e00: [(0x508, "JOIN THE OTHER ONE?", 0)],
-    0x19e14: [(0x508, "JOIN THE OTHER ONE TOO?", 0), (0x208, NEW, 0)],
-    0x19e30: [(0x728, "NO", 0), (0x928, "YES", 0)],      # (0x19e38, the second offset, is read
-    0x1b274: [(0x308, "LINK DOWN!", 1), (0x508, "CALL THE STAFF", 0)],   # by the game: kept)
+    0x19dc8: [(4, NEW, 0)],
+    0x19dd4: [(4, NEW, 0), (10, CANT, 0)],
+    0x19de0: [(10, CANT, 0)],
+    0x19df6: [(6, "JOINING IN!", 0)],
+    0x19e00: [(10, "JOIN THE OTHER ONE?", 0)],
+    0x19e14: [(10, "JOIN THE OTHER ONE TOO?", 0), (4, NEW, 0)],
+    0x19e30: [(14, "NO", 0), (18, "YES", 0)],       # (0x19e38, the second offset, is read
+    0x1b274: [(6, "LINK DOWN!", 1), (10, "CALL THE STAFF", 0)],   # by the game: kept)
 }
+
+
+def offset(row, text, shift):
+    """VRAM offset of a line (plane 64 cells wide): centred, in whole cells"""
+    width = 2 * len(pairs(text, shift))
+    col = COLUMN.get(text, (40 - width) // 2)
+    return row * 0x80 + col * 2
 
 
 def pairs(text, shift):
@@ -77,10 +87,10 @@ def apply(prog, streams, at, end):
             tiles[(4 * g + q) * 32:(4 * g + q + 1) * 32] = data
     for orig, lines in STRINGS.items():
         data = bytearray()
-        for k, (offset, text, shift) in enumerate(lines):
+        for k, (row, text, shift) in enumerate(lines):
             if len(data) % 2:
                 data.append(0)
-            data += struct.pack('>H', offset) + bytes([0x80, HIGH])
+            data += struct.pack('>H', offset(row, text, shift)) + bytes([0x80, HIGH])
             data += bytes(index[p] for p in pairs(text, shift))
             data.append(0xff if k == len(lines) - 1 else 0xfe)
         if len(data) % 2:

@@ -165,6 +165,40 @@ def apply_chain(streams):
                         if img[yy + dy][xx + dx] == 0:
                             img[yy + dy][xx + dx] = 2
     put_tiles(streams.get(0x83f2b), img, [[0x78, 0x79, 0x7a]])
+    apply_offset(streams)
+
+
+SMALL = {       # 4x9 capitals, 1-pixel strokes
+    'E': ["####", "#...", "#...", "#...", "###.", "#...", "#...", "#...", "####"],
+    'F': ["####", "#...", "#...", "#...", "###.", "#...", "#...", "#...", "#..."],
+    'O': [".##.", "#..#", "#..#", "#..#", "#..#", "#..#", "#..#", "#..#", ".##."],
+    'S': [".###", "#...", "#...", "#...", ".##.", "...#", "...#", "...#", "###."],
+    'T': ["####", ".#..", ".#..", ".#..", ".#..", ".#..", ".#..", ".#..", ".#.."],
+}
+OFFSET = "OFFSET"
+
+
+def apply_offset(streams):
+    # 相殺 in a four-player match: a 4x2 sprite, tiles 0x70-0x77 of stream 0x83f2b (column
+    # by column), a white (f) box on rows 2-15 with the kanji in black (1); the box kept,
+    # its inside redrawn with the word
+    tiles = streams.get(0x83f2b)
+    order = sprite_order(0x70, 4, 2, 1)
+    img = [[0] * 32 for _ in range(16)]
+    for ty, row in enumerate(order):
+        for tx, t in enumerate(row):
+            for y, line in enumerate(gfx.tile_get(tiles, t)):
+                img[ty * 8 + y][tx * 8:tx * 8 + 8] = line
+    for y in range(3, 15):
+        img[y] = [0xf] * 32
+    x = (32 - (5 * len(OFFSET) - 1)) // 2
+    for ch in OFFSET:
+        for y, line in enumerate(SMALL[ch]):
+            for dx, c in enumerate(line):
+                if c == '#':
+                    img[5 + y][x + dx] = 0x1
+        x += 5
+    put_tiles(tiles, img, order)
 
 
 def apply_here(streams):
@@ -196,10 +230,24 @@ def apply_entry(streams):
     gfx.replace_block(streams.get(0xca599), streams.get(0xff8d4), 0x2a4, 36, 6, img)
     # ひとり / ふたり / さんにん / よにん + でぷよぷよ ("<n> players' Puyo Puyo") above it:
     # 6-row blocks of the same map, put side by side on the screen
-    blocks = [(off, w, 6, png.read(os.path.join(ASSETS, name + '.png')), None)
-              for off, w, name in ((0x454, 12, 'count_1p'), (0x4e4, 12, 'count_2p'),
-                                   (0x574, 16, 'count_3p'), (0x634, 12, 'count_4p'),
-                                   (0x6c4, 20, 'puyo_puyo'))]
+    # The game puts the two blocks side by side, the pair centred on screen. "nP" is drawn
+    # flush right in its block and "PUYO PUYO" fills its own, so the line would sit right
+    # of centre: everything is moved left (the start of "PUYO" into the number's block) by
+    # what centres the 2P line; the 3P block is wider, its line stays a little right
+    counts = ((0x454, 12, 'count_1p'), (0x4e4, 12, 'count_2p'), (0x574, 16, 'count_3p'),
+              (0x634, 12, 'count_4p'))
+    puyo = png.read(os.path.join(ASSETS, 'puyo_puyo.png'))
+    imgs = {name: png.read(os.path.join(ASSETS, name + '.png')) for _, _, name in counts}
+    used = lambda img: [x for x in range(len(img[0])) if any(row[x] for row in img)]
+    left = used(imgs['count_2p'])[0]
+    right = len(puyo[0]) - 1 - used(puyo)[-1]
+    shift = (left - right) // 2
+    blocks = []
+    for off, w, name in counts:
+        line = [a + b for a, b in zip(imgs[name], puyo)]
+        line = [row[shift:] + [0] * shift for row in line]
+        blocks.append((off, w, 6, [row[:8 * w] for row in line], None))
+    blocks.append((0x6c4, 20, 6, [row[-160:] for row in line], None))
     gfx.replace_blocks(streams.get(0xca599), streams.get(0xff8d4), blocks)
 
 
@@ -273,6 +321,47 @@ def apply_service(prog):
         if i < 0 or prog.find(old, i + 1) >= 0:
             raise SystemExit('service text %r: not found once' % old)
         prog[i:i + len(new)] = new
+
+
+SIGN = ("PUSH {}P", "START!")
+SIGN_LISTS = {1: 0x2e8fc, 2: 0x2e91e}     # the sprite list of each variant
+
+
+def apply_sign(prog, streams):
+    # 1Pの / 2Pの + スタートボタンを / 押してね over the rabbit still waiting on the entry
+    # screen: sprites of stream 0xca599 (loaded at tile 0x100), the lists at 0x2e8fc (1P)
+    # and 0x2e91e (2P), each a count word then y, size, attribute, x: three sprites shared
+    # (4x4 tiles 0x1a, 4x4 0x2a, 1x4 0x3a at x 4, 0x24, 0x44: 72 x 32 pixels) and the
+    # number, 3x2 tiles 0x3e (1P) or 0x44 (2P), put over them. Two lines in white (f)
+    # outlined (1); the number sprite moved to where the number of the first line is
+    tiles = streams.get(0xca599)
+    line1, line2 = SIGN
+    head = line1[:line1.index('{')]
+    masks = [letter_mask(ch) for ch in line1.format(1)]
+    width = sum(len(m[0]) for m in masks) + len(masks) - 1
+    x_num = (72 - width) // 2 + sum(len(m[0]) + 1 for m in masks[:len(head)])
+    d_x = x_num - 1 - 4                      # the number sprite, from the 72-pixel area
+    for n, lst in SIGN_LISTS.items():
+        img = render(line1.format(n), 72, 16, 0xf, 0x1) + render(line2, 72, 16, 0xf, 0x1)
+        if n == 1:          # the shared sprites: the number's place left empty
+            shared = [row[:] for row in img]
+            for y in range(16):
+                for x in range(d_x, d_x + 24):
+                    shared[y][x] = 0
+            pad = lambda rows, w: [r + [0] * (w - len(r)) for r in rows]
+            put_tiles(tiles, shared, sprite_order(0x1a, 4, 4, 2))
+            put_tiles(tiles, pad([r[64:72] for r in shared], 8), sprite_order(0x3a, 1, 4, 1))
+        num = [row[d_x:d_x + 24] for row in img[:16]]
+        if any(img[y][x] != shared[y][x] for y in range(32) for x in range(72)
+               if not (y < 16 and d_x <= x < d_x + 24)):
+            raise SystemExit('sign: the number is not inside its sprite')
+        put_tiles(tiles, num, sprite_order(0x3e if n == 1 else 0x44, 3, 2, 1))
+        count = prog[lst] << 8 | prog[lst + 1]
+        for k in range(count):
+            e = lst + 2 + 8 * k
+            attr = prog[e + 4] << 8 | prog[e + 5]
+            if attr & 0x7ff in (0x13e, 0x144):
+                prog[e + 6:e + 8] = (4 + d_x).to_bytes(2, 'big')
 
 
 BADGE = "JOIN!"

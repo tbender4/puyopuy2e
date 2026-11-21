@@ -62,12 +62,14 @@ Hey dude! Help me out for a couple of :beers: or a :coffee:!<br/>
 | Character profiles before each match: 33 characters, 58 pages | English, new 8x16 text engine and font (all pages below) |
 | Attract mode tutorial pages (15) and their titles | English |
 | Title logo ぷよぷよ通 | redrawn as "Puyo Puyo", the gold 2 stays |
-| Entry screen: 参加者募集中, 参加, ひとりでぷよぷよ ... | PLAYERS WANTED!, JOIN!, 1P/2P PUYO PUYO |
+| Entry screen: 参加者募集中, 参加, ひとりでぷよぷよ ... | PLAYERS WANTED!, JOIN!, 1P/2P PUYO PUYO (centred) |
+| Entry screen: 2Pのスタートボタンを押してね over the rabbit still waiting | PUSH 2P START! (and 1P) |
 | Tower: 相手をえらんでね, ここにいる | PICK YOUR RIVAL, YOU ARE HERE |
 | 乱入可能 sign, 連鎖 counter, 全消し | JOIN IN!, CHAIN, ALL CLEAR |
+| 相殺 in a four-player (linked) match | OFFSET |
 | Rule select screen | CHOOSE A RULE! and both rule lines |
 | Level select: 激甘 ... 激辛 | EXTRA MILD, MILD, MEDIUM, HOT, EXTRA HOT |
-| Join-in and link messages, はい / いいえ | NEW CHALLENGER!, YES / NO, ... |
+| Join-in and link messages, はい / いいえ | NEW CHALLENGER!, YES / NO, ...; centred on screen |
 | Continue screen, win screen (やった) | CONTINUE?, YAY! |
 | Act Against AIDS slogan 勇気と愛気 | COURAGE AND LOVE |
 | Service menu romaji, ending record (MAX RENSA) | English |
@@ -79,8 +81,11 @@ Known limits:
 - The ending is the same at every Difficulty setting (played to the end at Easy, Medium
   and Hardest in MAME: same frames) and has no text; its playing record keeps the game's own romaji names of the
   rivals (SUKETOUDARA, SHEZO WEGEY, ...), already in Latin letters.
-- The link messages (two cabinets joined by a cable) cannot be seen in an emulator; they
-  are checked by drawing them from the new ROM the way the game does.
+- The link messages and the four-player match (two cabinets joined by a cable) cannot be
+  seen in an emulator; they are checked by drawing them from the new ROM the way the game
+  does. Thanks to thomasbender for the four-player screenshots that showed what was left.
+- The 3P PUYO PUYO line of a linked game sits a few pixels right of centre: its number
+  block is wider and the PUYO PUYO block is shared by all four.
 
 ## Screenshots
 
@@ -168,8 +173,8 @@ Output, the files of `puyopuy2e.zip`:
 
 | File | Size | CRC32 | SHA1 | From |
 |---|---|---|---|---|
-| pp2e-17241.ic32 | 524288 | 6a1c9865 | d067d991be92d051da440d32640a4fb12333e82a | epr-17241.ic32, changed |
-| pp2e-17240.ic31 | 524288 | 384bcad2 | 569510f45b3bcbd1d191524de78e6b47c2b1cc47 | epr-17240.ic31, changed |
+| pp2e-17241.ic32 | 524288 | 788b7ded | bede055ba58807aff3658bedec8220b0bf303135 | epr-17241.ic32, changed |
+| pp2e-17240.ic31 | 524288 | 68dcbc68 | b3e17be13a603762a0711a7d89dccb71136a3d2e | epr-17240.ic31, changed |
 | epr-17239.ic4 | 524288 | 020ff6ef | 6095b8277b47a6fd7a9721f15a70ae5bf6be9b1a | copied |
 
 These names and CRCs are the ones the `puyopuy2e` driver entry of mame2003-plus expects

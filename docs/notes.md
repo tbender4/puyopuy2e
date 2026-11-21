@@ -71,9 +71,11 @@ is drawn), so a block of the map can be redrawn with the tiles only that block u
 | Tutorial, play | 乱入可能 | sprite tiles `0x900be` 0-15, tutorial tiles `0x91545` `0x14d`- |
 | Tutorial | 全消し | map `0x45503` at `0x270`, tiles `0x91545` |
 | Play | 連鎖 | tiles `0x83f2b` `0x78`-`0x7a` |
+| Play, four players | 相殺 | 4x2 sprite, tiles `0x83f2b` `0x70`-`0x77` |
 | Tower | 相手を / えらんでね, ここにいる | tiles `0xc62d1`, `0xc8503` |
 | Continue | コンティニューするかい？ | map `0xcc655`, tiles `0xcca17` |
 | Entry | 参加者募集中, 参加, ひとり/ふたり/さんにん/よにん + でぷよぷよ | map `0xff8d4` (`0x2a4`, `0x1f4`, `0x454`-`0x6c4`), tiles `0xca599` |
+| Entry | 1Pの / 2Pの スタートボタンを押してね | sprite lists `0x2e8fc` (1P), `0x2e91e` (2P); tiles `0xca599` `0x1a`-`0x49` (loaded at tile `0x100`) |
 | AIDS logo | 勇気と愛気 | map `0x3eaff` at `0x604`, tiles `0x3ee26` |
 | Rule select | ルールを選んでください and the two rule lines | map `0xfbd02` (`0x8c0`, `0x986`, `0xa0e`), tiles `0xfbf8f` |
 | Level select | 激甘 甘口 中辛 辛口 激辛 | sprite lists at `0x1e96c`, tiles `0x86339` (`tools/levels.py`) |
