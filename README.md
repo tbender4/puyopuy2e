@@ -40,7 +40,7 @@ You need one file you already have from your MAME/RetroArch ROM collection:
    ```
 5. You get `puyopuy2e.zip` in the same folder, the full English ROM set (all three chips,
    it does not need `puyopuy2.zip` any more). The script prints "written ...
-   puyopuy2e.zip", the CRC of every file and "CRCs match the mame2003-plus driver".
+   puyopuy2e.zip", the CRC of every file and "CRCs match expected (...)".
 6. Copy `puyopuy2e.zip` into your ROM folder and start it with the **mame2003-plus**
    core (RetroArch: Load Content, pick `puyopuy2e.zip`, choose "Arcade (MAME
    2003-Plus)"). The core must be a build with the `puyopuy2e` entry (branch
@@ -181,16 +181,20 @@ Input, the chips of `puyopuy2.zip`:
 | epr-17240.ic31 | 524288 | beecf96d | c2bdad4b6184c11f81f2a5db409cb4ea186205a7 |
 | epr-17239.ic4 | 524288 | 020ff6ef | 6095b8277b47a6fd7a9721f15a70ae5bf6be9b1a |
 
-Output, the files of `puyopuy2e.zip`:
+Output, the files of `puyopuy2e.zip` (by `--logo` mode):
 
-| File | Size | CRC32 | SHA1 | From |
-|---|---|---|---|---|
-| pp2e-17241.ic32 | 524288 | 0d9ad8af | b475d6a3a81efb3d4adf298e17ec56f49ef84c31 | epr-17241.ic32, changed |
-| pp2e-17240.ic31 | 524288 | 3a08b15e | 8cef983b580d1643834488d16489449b28ed7cdf | epr-17240.ic31, changed |
-| epr-17239.ic4 | 524288 | 020ff6ef | 6095b8277b47a6fd7a9721f15a70ae5bf6be9b1a | copied |
+| `--logo` | File | Size | CRC32 | SHA1 | From |
+|---|---|---|---|---|---|
+| `no-red-puyos` (default) | pp2e-17241.ic32 | 524288 | aec849c7 | 160a5e645e3bcc7f3b17ead50c6ac4beff751623 | epr-17241.ic32, changed |
+| `no-red-puyos` (default) | pp2e-17240.ic31 | 524288 | 1f42ef65 | 6dbba7bb4280c9cf5ca4655ae937334ba5cc2a73 | epr-17240.ic31, changed |
+| `with-red-puyos` | pp2e-17241.ic32 | 524288 | cb15dce8 | 226b8cfbc6596a8246558021ba0b91b81bd9677c | epr-17241.ic32, changed |
+| `with-red-puyos` | pp2e-17240.ic31 | 524288 | c1bba333 | e15260d85cd6c70c56313e977aa4d4ff8f8938e5 | epr-17240.ic31, changed |
+| `original` | pp2e-17241.ic32 | 524288 | 3a6607d1 | 1ed6b81ab2c480c3281d01ede7a7f67f539ed358 | epr-17241.ic32, changed |
+| `original` | pp2e-17240.ic31 | 524288 | c375d2c5 | 87a6454ec52c6f57413203a53095e762cf36ae67 | epr-17240.ic31, changed |
+| all | epr-17239.ic4 | 524288 | 020ff6ef | 6095b8277b47a6fd7a9721f15a70ae5bf6be9b1a | copied |
 
-These names and CRCs are the ones the `puyopuy2e` driver entry of mame2003-plus expects
-(a clone of `puyopuy2`, same board and protection). To try the set in a recent MAME
+The two 16-bit EPROM checksums at `0x1f8`/`0x1fa` are recalculated for each build so the
+cabinet `TEST SYSTEM -> MEMORY TEST` passes (`GOOD`). To try any variant in a recent MAME
 instead, put the two `pp2e` files in a copy of `puyopuy2.zip` under the names
 `epr-17241.ic32` and `epr-17240.ic31` and start `puyopuy2`.
 

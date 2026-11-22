@@ -8,7 +8,8 @@ how `puyopuy2e` changes it. Addresses are in the 1 MB program.
 `epr-17241.ic32` (even bytes) and `epr-17240.ic31` (odd bytes) make the 1 MB 68000
 program (`tools/romset.py`). `epr-17239.ic4` is the UPD7759 sound ROM, unchanged. The
 protection chip (read at `$800001`) does not check the program: the modified ROM runs in
-MAME 0.264 and in mame2003-plus.
+MAME 0.264 and in mame2003-plus. `tools/build.py` updates the two 16-bit EPROM checksums
+at `0x1f8` (IC32) and `0x1fa` (IC31) so `TEST SYSTEM -> MEMORY TEST` passes.
 
 ## Text
 

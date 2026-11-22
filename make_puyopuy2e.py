@@ -11,8 +11,12 @@ sys.path.insert(0, os.path.join(HERE, 'tools'))
 import romset, build, logo
 
 OUT_NAMES = ('pp2e-17241.ic32', 'pp2e-17240.ic31')
-# the CRCs the puyopuy2e entry of mame2003-plus expects
-EXPECTED = {'pp2e-17241.ic32': 0x0d9ad8af, 'pp2e-17240.ic31': 0x3a08b15e, 'epr-17239.ic4': 0x020ff6ef}
+# expected (even, odd) program CRCs for each --logo mode
+EXPECTED = {
+    'no-red-puyos':   (0xaec849c7, 0x1f42ef65),
+    'with-red-puyos': (0xcb15dce8, 0xc1bba333),
+    'original':       (0x3a6607d1, 0xc375d2c5),
+}
 
 
 def main():
@@ -39,13 +43,14 @@ def main():
         for name, data in files:
             z.writestr(name, data)
     print('written', out)
+    expected = (*EXPECTED[args.logo], romset.SOUND[1])
     ok = True
-    for name, data in files:
+    for (name, data), want in zip(files, expected):
         crc = zlib.crc32(data) & 0xffffffff
         print('  %-16s %7d  %08x  %s' % (name, len(data), crc, hashlib.sha1(data).hexdigest()))
-        ok = ok and crc == EXPECTED[name]
-    print('CRCs match the mame2003-plus driver' if ok else
-          'WARNING: the CRCs differ from the ones the mame2003-plus driver expects')
+        ok = ok and crc == want
+    print('CRCs match expected (%s)' % args.logo if ok else
+          'WARNING: the CRCs differ from expected (%s)' % args.logo)
 
 
 if __name__ == '__main__':

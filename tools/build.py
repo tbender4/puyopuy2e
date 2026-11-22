@@ -18,6 +18,13 @@ def jmp(prog, at, to, length):
     prog[at:at + length] = code
 
 
+def update_checksums(prog):
+    """Update the 16-bit EPROM checksums at 0x1f8 (IC32) and 0x1fa (IC31) for MEMORY TEST."""
+    sums = [sum((prog[a] << 8) | prog[a + 2] for a in range(off, len(prog), 4)
+                if not (0x1f8 <= a < 0x200)) & 0xffff for off in (0, 1)]
+    prog[0x1f8:0x1fc] = struct.pack('>HH', *sums)
+
+
 def build(prog, logo_mode=logo.DEFAULT_MODE):
     prog = bytearray(prog)
     # text engine: 8x16 glyphs
@@ -46,4 +53,5 @@ def build(prog, logo_mode=logo.DEFAULT_MODE):
     print('join-in messages: %d bytes' % (end - text.TEXT_AT - used))
     end = levels.apply(prog, streams, end, text.TEXT_END)
     streams.write()
+    update_checksums(prog)
     return prog
