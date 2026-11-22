@@ -62,7 +62,7 @@ Hey dude! Help me out for a couple of :beers: or a :coffee:!<br/>
 | Character profiles before each match: 33 characters, 58 pages | English, new 8x16 text engine and font (all pages below) |
 | Attract mode tutorial pages (15) and their titles | English |
 | JOINING IN tutorial page (linked cabinets only): 乱入するの？ / はい / いいえ | JOIN IN? / YES / NO |
-| Title logo ぷよぷよ通 | redrawn as "Puyo Puyo", the gold 2 stays |
+| Title logo ぷよぷよ通 | redrawn as "Puyo Puyo", the gold 2 stays; the bouncing handakuten puyos land over the u ("Püyo") |
 | Entry screen: 参加者募集中, 参加, ひとりでぷよぷよ ... | PLAYERS WANTED!, JOIN!, 1P/2P PUYO PUYO (centred) |
 | Entry screen: 2Pのスタートボタンを押してね over the rabbit still waiting | PUSH 2P START! (and 1P) |
 | Tower: 相手をえらんでね, ここにいる | PICK YOUR RIVAL, YOU ARE HERE |
@@ -89,7 +89,8 @@ Known limits:
   instances of the core joined by a high-level stand-in for the board (a local test
   harness, not part of the driver): entry screen, join prompts, four-player match,
   results and the attract pages shown only when linked. Thanks to thomasbender for the
-  four-player screenshots that showed what was left.
+  four-player screenshots that showed what was left, and for the idea of bringing back the
+  bouncing puyos of the title.
 - The 3P PUYO PUYO line of a linked game sits a few pixels right of centre: its number
   block is wider and the PUYO PUYO block is shared by all four.
 
@@ -182,8 +183,8 @@ Output, the files of `puyopuy2e.zip`:
 
 | File | Size | CRC32 | SHA1 | From |
 |---|---|---|---|---|
-| pp2e-17241.ic32 | 524288 | 0d9ad8af | b475d6a3a81efb3d4adf298e17ec56f49ef84c31 | epr-17241.ic32, changed |
-| pp2e-17240.ic31 | 524288 | 3a08b15e | 8cef983b580d1643834488d16489449b28ed7cdf | epr-17240.ic31, changed |
+| pp2e-17241.ic32 | 524288 | 8e025713 | 74b7893695c8f4942ca0fd6a6742618c8414f261 | epr-17241.ic32, changed |
+| pp2e-17240.ic31 | 524288 | 38eb7703 | 4aa0800973485d1637329c8915a50e23e64df101 | epr-17240.ic31, changed |
 | epr-17239.ic4 | 524288 | 020ff6ef | 6095b8277b47a6fd7a9721f15a70ae5bf6be9b1a | copied |
 
 These names and CRCs are the ones the `puyopuy2e` driver entry of mame2003-plus expects
