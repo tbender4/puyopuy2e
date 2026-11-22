@@ -95,7 +95,7 @@ Known limits:
 
 ## Screenshots
 
-Japanese arcade original on the left, `puyopuy2e` on the right (MAME).
+Japanese arcade original on the left, `puyopuy2e` on the right (MAME; the linked-cabinet ones from two mame2003-plus instances joined by the test link, see Known limits).
 
 | | Original | English |
 |---|---|---|
@@ -109,6 +109,9 @@ Japanese arcade original on the left, `puyopuy2e` on the right (MAME).
 | Tower | ![](screenshots/tower2_jp.png) | ![](screenshots/tower2_en.png) |
 | Profile | ![](screenshots/profile_jp.png) | ![](screenshots/profile_en.png) |
 | Join-in | ![](screenshots/challenger_jp.png) | ![](screenshots/challenger_en.png) |
+| Linked cabinets: join prompt | ![](screenshots/join_jp.png) | ![](screenshots/join_en.png) |
+| Linked cabinets: knocked out | ![](screenshots/knockout_jp.png) | ![](screenshots/knockout_en.png) |
+| Linked cabinets: tutorial | ![](screenshots/linktutorial_jp.png) | ![](screenshots/linktutorial_en.png) |
 | Rule select | ![](screenshots/rule_jp.png) | ![](screenshots/rule_en.png) |
 | Level select | ![](screenshots/level_jp.png) | ![](screenshots/level_en.png) |
 | Win | ![](screenshots/win_jp.png) | ![](screenshots/win_en.png) |
