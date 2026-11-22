@@ -40,14 +40,17 @@ You need one file you already have from your MAME/RetroArch ROM collection:
    ```
 5. You get `puyopuy2e.zip` in the same folder, the full English ROM set (all three chips,
    it does not need `puyopuy2.zip` any more). The script prints "written ...
-   puyopuy2e.zip", the CRC of every file and "CRCs match the mame2003-plus driver".
+   puyopuy2e.zip", the CRC of every file and "CRCs match expected (...)".
 6. Copy `puyopuy2e.zip` into your ROM folder and start it with the **mame2003-plus**
    core (RetroArch: Load Content, pick `puyopuy2e.zip`, choose "Arcade (MAME
    2003-Plus)"). The core must be a build with the `puyopuy2e` entry (branch
    `puyopuy2e` of [zanac/mame2003-plus-libretro](https://github.com/zanac/mame2003-plus-libretro)).
 
 The zip can also be somewhere else: `python3 make_puyopuy2e.py FOLDER [OUT_FOLDER]`, or
-the path of the zip itself. If the script says a chip is not found, your `puyopuy2.zip`
+the path of the zip itself. You can pick the title logo with `--logo`:
+`no-red-puyos` (default: "Puyo Puyo 通", red puyos removed), `with-red-puyos`
+("Puyo Puyo 通" with red puyos over the `u` letters), or `original` (Japanese `ぷよぷよ通`
+untouched). If the script says a chip is not found, your `puyopuy2.zip`
 is a different dump: check it against the input table below (the chips are found by CRC,
 the names inside the zip do not matter).
 
@@ -62,7 +65,7 @@ Hey dude! Help me out for a couple of :beers: or a :coffee:!<br/>
 | Character profiles before each match: 33 characters, 58 pages | English, new 8x16 text engine and font (all pages below) |
 | Attract mode tutorial pages (15) and their titles | English |
 | JOINING IN tutorial page (linked cabinets only): 乱入するの？ / はい / いいえ | JOIN IN? / YES / NO |
-| Title logo ぷよぷよ通 | redrawn as "Puyo Puyo", the gold 2 stays; the bouncing handakuten puyos land over the u ("Püyo") |
+| Title logo ぷよぷよ通 | redrawn as "Puyo Puyo 通" (`--logo`: `no-red-puyos` default, `with-red-puyos`, or `original`) |
 | Entry screen: 参加者募集中, 参加, ひとりでぷよぷよ ... | PLAYERS WANTED!, JOIN!, 1P/2P PUYO PUYO (centred) |
 | Entry screen: 2Pのスタートボタンを押してね over the rabbit still waiting | PUSH 2P START! (and 1P) |
 | Tower: 相手をえらんでね, ここにいる | PICK YOUR RIVAL, YOU ARE HERE |
@@ -89,8 +92,8 @@ Known limits:
   instances of the core joined by a high-level stand-in for the board (a local test
   harness, not part of the driver): entry screen, join prompts, four-player match,
   results and the attract pages shown only when linked. Thanks to thomasbender for the
-  four-player screenshots that showed what was left, and for the idea of bringing back the
-  bouncing puyos of the title.
+  four-player screenshots that showed what was left, and for the logo variants (with 通 kept
+  within the sprite budget) and the MEMORY TEST checksums (PR #2).
 - The 3P PUYO PUYO line of a linked game sits a few pixels right of centre: its number
   block is wider and the PUYO PUYO block is shared by all four.
 
@@ -179,16 +182,22 @@ Input, the chips of `puyopuy2.zip`:
 | epr-17240.ic31 | 524288 | beecf96d | c2bdad4b6184c11f81f2a5db409cb4ea186205a7 |
 | epr-17239.ic4 | 524288 | 020ff6ef | 6095b8277b47a6fd7a9721f15a70ae5bf6be9b1a |
 
-Output, the files of `puyopuy2e.zip`:
+Output, the files of `puyopuy2e.zip` (by `--logo` mode):
 
-| File | Size | CRC32 | SHA1 | From |
-|---|---|---|---|---|
-| pp2e-17241.ic32 | 524288 | 8e025713 | 74b7893695c8f4942ca0fd6a6742618c8414f261 | epr-17241.ic32, changed |
-| pp2e-17240.ic31 | 524288 | 38eb7703 | 4aa0800973485d1637329c8915a50e23e64df101 | epr-17240.ic31, changed |
-| epr-17239.ic4 | 524288 | 020ff6ef | 6095b8277b47a6fd7a9721f15a70ae5bf6be9b1a | copied |
+| `--logo` | File | Size | CRC32 | SHA1 | From |
+|---|---|---|---|---|---|
+| `no-red-puyos` (default) | pp2e-17241.ic32 | 524288 | aec849c7 | 160a5e645e3bcc7f3b17ead50c6ac4beff751623 | epr-17241.ic32, changed |
+| `no-red-puyos` (default) | pp2e-17240.ic31 | 524288 | 1f42ef65 | 6dbba7bb4280c9cf5ca4655ae937334ba5cc2a73 | epr-17240.ic31, changed |
+| `with-red-puyos` | pp2e-17241.ic32 | 524288 | cb15dce8 | 226b8cfbc6596a8246558021ba0b91b81bd9677c | epr-17241.ic32, changed |
+| `with-red-puyos` | pp2e-17240.ic31 | 524288 | c1bba333 | e15260d85cd6c70c56313e977aa4d4ff8f8938e5 | epr-17240.ic31, changed |
+| `original` | pp2e-17241.ic32 | 524288 | 3a6607d1 | 1ed6b81ab2c480c3281d01ede7a7f67f539ed358 | epr-17241.ic32, changed |
+| `original` | pp2e-17240.ic31 | 524288 | c375d2c5 | 87a6454ec52c6f57413203a53095e762cf36ae67 | epr-17240.ic31, changed |
+| all | epr-17239.ic4 | 524288 | 020ff6ef | 6095b8277b47a6fd7a9721f15a70ae5bf6be9b1a | copied |
 
-These names and CRCs are the ones the `puyopuy2e` driver entry of mame2003-plus expects
-(a clone of `puyopuy2`, same board and protection). To try the set in a recent MAME
+The two 16-bit EPROM checksums at `0x1f8`/`0x1fa` are recalculated for each build so the
+cabinet `TEST SYSTEM -> MEMORY TEST` passes (`GOOD`). The `puyopuy2e` entry of
+mame2003-plus expects the default (`no-red-puyos`) CRCs; the other two variants run there
+only if the core does not check them. To try any variant in a recent MAME
 instead, put the two `pp2e` files in a copy of `puyopuy2.zip` under the names
 `epr-17241.ic32` and `epr-17240.ic31` and start `puyopuy2`.
 

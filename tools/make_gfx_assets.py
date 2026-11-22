@@ -24,25 +24,22 @@ LOGO_PALETTE = {2: (99, 0, 0), 3: (132, 0, 0), 4: (165, 0, 0), 5: (198, 0, 0), 6
 
 
 def logo():
-    """"Puyo" from assets/puyopuyo_logo.jpg (its first word), 112 x 48, in the logo's
-    colours; the near-white background transparent"""
+    """"Puyo" from assets/puyopuyo_logo.jpg (its first word), 96 x 64 (94 x 53 placed at
+    y=8 so the sprite split at y=24 and the 'y' tail at y=56 land on tile rows), in the
+    logo's colours; the near-white background transparent"""
     from PIL import Image
     src = Image.open(os.path.join(HERE, '..', 'assets', 'puyopuyo_logo.jpg')).convert('RGB')
     word = src.crop((0, 0, 286, src.height))
     bbox = word.point(lambda v: 255 if v < 200 else 0).convert('L').getbbox()
-    word = word.crop(bbox)
-    h = 46
-    w = round(word.width * h / word.height)
-    word = word.resize((w, h), Image.LANCZOS)
-    img = [[0] * 112 for _ in range(48)]
-    x0, y0 = (112 - w) // 2, 1
-    for y in range(h):
-        for x in range(w):
+    word = word.crop(bbox).resize((94, 53), Image.LANCZOS)
+    img = [[0] * 96 for _ in range(64)]
+    for y in range(53):
+        for x in range(94):
             r, g, b = word.getpixel((x, y))
             if r > 215 and g > 200 and b > 200:
                 continue
             best = min(LOGO_PALETTE, key=lambda k: sum((a - c) ** 2 for a, c in zip(LOGO_PALETTE[k], (r, g, b))))
-            img[y0 + y][x0 + x] = best
+            img[8 + y][x] = best
     pal = [(0, 0, 0)] * 16
     for k, c in LOGO_PALETTE.items():
         pal[k] = c
