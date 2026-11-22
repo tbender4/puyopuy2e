@@ -29,9 +29,14 @@ STRINGS = {
     0x19df6: [(6, "JOINING IN!", 0)],
     0x19e00: [(10, "JOIN THE OTHER ONE?", 0)],
     0x19e14: [(10, "JOIN THE OTHER ONE TOO?", 0), (4, NEW, 0)],
-    0x19e30: [(14, "NO", 0), (18, "YES", 0)],       # (0x19e38, the second offset, is read
-    0x1b274: [(6, "LINK DOWN!", 1), (10, "CALL THE STAFF", 0)],   # by the game: kept)
+    0x19e30: [(14, "NO", 0), (18, "YES", 0)],       # written in place: see apply
+    0x1b274: [(6, "LINK DOWN!", 1), (10, "CALL THE STAFF", 0)],
 }
+# The choice under the cursor is drawn again in red (0x19cf8) from the original records,
+# 0x19e30 for NO and 0x19e38 for YES: offset word, 80 84 skipped, glyphs to fe/ff. NO / YES
+# are written there in place, each 8 bytes; NO ends with 80 84 before fe, so that its
+# record (one glyph shorter than いいえ) ends where YES's starts
+IN_PLACE = {0x19e30: 0x19e38}
 
 
 def offset(row, text, shift):
@@ -93,6 +98,18 @@ def apply(prog, streams, at, end):
             data += struct.pack('>H', offset(row, text, shift)) + bytes([0x80, HIGH])
             data += bytes(index[p] for p in pairs(text, shift))
             data.append(0xff if k == len(lines) - 1 else 0xfe)
+        if orig in IN_PLACE:
+            rows = [(row, text, shift) for row, text, shift in lines]
+            first = struct.pack('>H', offset(*rows[0])) + bytes([0x80, HIGH])
+            first += bytes(index[p] for p in pairs(*rows[0][1:]))
+            first += bytes([0x80, HIGH]) * ((IN_PLACE[orig] - orig - len(first) - 1) // 2) + b'\xfe'
+            second = struct.pack('>H', offset(*rows[1])) + bytes([0x80, HIGH])
+            second += bytes(index[p] for p in pairs(*rows[1][1:])) + b'\xff'
+            second += b'\0' * (len(second) % 2)
+            if len(first) != IN_PLACE[orig] - orig or len(second) > 8:
+                raise SystemExit('linkmsg: NO / YES do not fit their records')
+            prog[orig:orig + 16] = (first + second).ljust(16, b'\0')
+            continue
         if len(data) % 2:
             data.append(0)
         if at + len(data) > end:

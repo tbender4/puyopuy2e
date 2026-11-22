@@ -68,9 +68,10 @@ Hey dude! Help me out for a couple of :beers: or a :coffee:!<br/>
 | Tower: 相手をえらんでね, ここにいる | PICK YOUR RIVAL, YOU ARE HERE |
 | 乱入可能 sign, 連鎖 counter, 全消し | JOIN IN!, CHAIN, ALL CLEAR |
 | 相殺 in a four-player (linked) match | OFFSET |
+| ばたんきゅ～ over a knocked-out player's field, big and in the small fields of the score panel | K.O. |
 | Rule select screen | CHOOSE A RULE! and both rule lines |
 | Level select: 激甘 ... 激辛 | EXTRA MILD, MILD, MEDIUM, HOT, EXTRA HOT |
-| Join-in and link messages, はい / いいえ | NEW CHALLENGER!, YES / NO, ...; centred on screen |
+| Join-in and link messages, はい / いいえ | NEW CHALLENGER!, YES / NO (also when highlighted), ...; centred on screen |
 | Continue screen, win screen (やった) | CONTINUE?, YAY! |
 | Act Against AIDS slogan 勇気と愛気 | COURAGE AND LOVE |
 | Service menu romaji, ending record (MAX RENSA) | English |
@@ -178,8 +179,8 @@ Output, the files of `puyopuy2e.zip`:
 
 | File | Size | CRC32 | SHA1 | From |
 |---|---|---|---|---|
-| pp2e-17241.ic32 | 524288 | a006ea88 | 45f3f4ff421a20c446b4a93265d5ee344ff43354 | epr-17241.ic32, changed |
-| pp2e-17240.ic31 | 524288 | 01c1d7dc | 5fa8e483c9e1558a191ad2176d720c6f523d63c7 | epr-17240.ic31, changed |
+| pp2e-17241.ic32 | 524288 | 0d9ad8af | b475d6a3a81efb3d4adf298e17ec56f49ef84c31 | epr-17241.ic32, changed |
+| pp2e-17240.ic31 | 524288 | 3a08b15e | 8cef983b580d1643834488d16489449b28ed7cdf | epr-17240.ic31, changed |
 | epr-17239.ic4 | 524288 | 020ff6ef | 6095b8277b47a6fd7a9721f15a70ae5bf6be9b1a | copied |
 
 These names and CRCs are the ones the `puyopuy2e` driver entry of mame2003-plus expects

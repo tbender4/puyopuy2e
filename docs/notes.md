@@ -71,6 +71,7 @@ is drawn), so a block of the map can be redrawn with the tiles only that block u
 | Tutorial, play | 乱入可能 | sprite tiles `0x900be` 0-15, tutorial tiles `0x91545` `0x14d`- |
 | Tutorial | 全消し | map `0x45503` at `0x270`, tiles `0x91545` |
 | Play | 連鎖 | tiles `0x83f2b` `0x78`-`0x7a` |
+| Play, three or four players | ばたんきゅ～ | sprites, stream `0x869e7` (70 tiles, list at `0x1e57c`); small field: stream `0x85dc1` (3 x 6 tiles) |
 | Play, four players | 相殺 | 4x2 sprite, tiles `0x83f2b` `0x70`-`0x77` |
 | Tower | 相手を / えらんでね, ここにいる | tiles `0xc62d1`, `0xc8503` |
 | Continue | コンティニューするかい？ | map `0xcc655`, tiles `0xcca17` |
@@ -123,4 +124,7 @@ are the 256-byte transmit ring, `0x20`-`0x3f` the receive ring, `0xfc` the ID, `
 pointer, receive read pointer, bytes to send, bytes received, ..., byte 7 a kick to the
 Z80). The game copies its packets in and out at `0x186e0`; `0xffa500` bit 7 is set while
 linked. Neither MAME nor mame2003-plus emulates the board.
+
+The join prompt draws the highlighted choice again from the original records `0x19e30`
+(NO) and `0x19e38` (YES) (`0x19cf8`), so those two are rewritten in place.
 

@@ -84,6 +84,7 @@ def apply(streams):
     apply_badge(streams)
     apply_rules(streams)
     apply_ask(streams)
+    apply_knockout(streams)
 
 
 def rows_order(first, width_tiles, height_tiles):
@@ -326,6 +327,82 @@ def apply_service(prog):
 
 SIGN = ("PUSH {}P", "START!")
 SIGN_LISTS = {1: 0x2e8fc, 2: 0x2e91e}     # the sprite list of each variant
+
+
+KO = "K.O."
+
+
+def scaled_mask(text, width, height, gap):
+    """text in the title font, each letter stretched to width x height pixels
+    (a '.' a square at the foot), letters gap apart: rows of 0/1"""
+    masks = []
+    for ch in text:
+        if ch == '.':
+            m = [[0, 0] for _ in range(11)] + [[1, 1], [1, 1]]
+            w = max(2, width * 2 // 7)
+        else:
+            m = letter_mask(ch)
+            w = width
+        sw = len(m[0])
+        masks.append([[m[y * 13 // height][x * sw // w] for x in range(w)] for y in range(height)])
+    out = [[] for _ in range(height)]
+    for k, m in enumerate(masks):
+        for y in range(height):
+            out[y] += ([0] * gap if k else []) + m[y]
+    return out
+
+
+def ring(img, colour, inside):
+    """img with the pixels next to any of inside (and not in it) set to colour"""
+    h, w = len(img), len(img[0])
+    out = [row[:] for row in img]
+    for y in range(h):
+        for x in range(w):
+            if img[y][x] not in inside and any(0 <= y + dy < h and 0 <= x + dx < w and img[y + dy][x + dx] in inside
+                                               for dy in (-1, 0, 1) for dx in (-1, 0, 1)):
+                out[y][x] = colour
+    return out
+
+
+KO_SPRITES = [(0x00, 4, 4, 0, 0), (0x10, 4, 4, 32, 0), (0x20, 3, 4, 64, 0), (0x2c, 1, 2, 16, 32),
+              (0x2e, 2, 3, 24, 32), (0x34, 4, 3, 40, 32), (0x40, 3, 2, 72, 32)]
+
+
+def apply_knockout(streams):
+    # ばたんきゅ～, over the field of a player knocked out while the others play on (three or
+    # four players, and the attract demo): stream 0x869e7, 70 tiles, seven sprites (list at
+    # 0x1e57c) covering 96 x 56 pixels as KO_SPRITES (first tile, columns, rows, x, y), in
+    # light blue (1) edged 5, outlined 6. Now K.O.
+    tiles = streams.get(0x869e7)
+    m = scaled_mask(KO, 21, 39, 3)
+    w = len(m[0])
+    img = [[0] * 96 for _ in range(56)]
+    x0, y0 = 16 + (72 - w) // 2, 6
+    for y, row in enumerate(m):
+        for x, v in enumerate(row):
+            if v:
+                img[y0 + y][x0 + x] = 1
+    img = ring(ring(img, 5, {1}), 6, {1, 5})
+    for first, cols, rows, x, y in KO_SPRITES:
+        for c in range(cols):
+            for r in range(rows):
+                gfx.tile_put(tiles, first + c * rows + r,
+                             [row[x + 8 * c:x + 8 * c + 8] for row in img[y + 8 * r:y + 8 * r + 8]])
+    covered = {(x + 8 * c + i, y + 8 * r + j) for first, cols, rows, x, y in KO_SPRITES
+               for c in range(cols) for r in range(rows) for i in range(8) for j in range(8)}
+    if any(img[y][x] and (x, y) not in covered for y in range(56) for x in range(96)):
+        raise SystemExit('K.O.: outside the sprites')
+    # the same in the small field of a knocked-out player on the score panel: stream
+    # 0x85dc1, 3 x 6 tiles row by row, yellow (6) on the field's blue (1)
+    tiles = streams.get(0x85dc1)
+    img = [[1] * 24 for _ in range(48)]
+    for k, line in enumerate(("K.", "O.")):
+        m = scaled_mask(line, 14, 19, 2)
+        for y, row in enumerate(m):
+            for x, v in enumerate(row):
+                if v:
+                    img[4 + 22 * k + y][(24 - len(row)) // 2 + x] = 6
+    put_tiles(tiles, img, [[3 * r + c for c in range(3)] for r in range(6)])
 
 
 ASK = ("JOIN IN?", "YES", "NO")
