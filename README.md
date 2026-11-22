@@ -47,7 +47,10 @@ You need one file you already have from your MAME/RetroArch ROM collection:
    `puyopuy2e` of [zanac/mame2003-plus-libretro](https://github.com/zanac/mame2003-plus-libretro)).
 
 The zip can also be somewhere else: `python3 make_puyopuy2e.py FOLDER [OUT_FOLDER]`, or
-the path of the zip itself. If the script says a chip is not found, your `puyopuy2.zip`
+the path of the zip itself. You can pick the title logo with `--logo`:
+`no-red-puyos` (default: "Puyo Puyo 通", red puyos removed), `with-red-puyos`
+("Puyo Puyo 通" with red puyos over the `u` letters), or `original` (Japanese `ぷよぷよ通`
+untouched). If the script says a chip is not found, your `puyopuy2.zip`
 is a different dump: check it against the input table below (the chips are found by CRC,
 the names inside the zip do not matter).
 
@@ -62,7 +65,7 @@ Hey dude! Help me out for a couple of :beers: or a :coffee:!<br/>
 | Character profiles before each match: 33 characters, 58 pages | English, new 8x16 text engine and font (all pages below) |
 | Attract mode tutorial pages (15) and their titles | English |
 | JOINING IN tutorial page (linked cabinets only): 乱入するの？ / はい / いいえ | JOIN IN? / YES / NO |
-| Title logo ぷよぷよ通 | redrawn as "Puyo Puyo", the gold 2 stays |
+| Title logo ぷよぷよ通 | redrawn as "Puyo Puyo 通" (`--logo`: `no-red-puyos` default, `with-red-puyos`, or `original`) |
 | Entry screen: 参加者募集中, 参加, ひとりでぷよぷよ ... | PLAYERS WANTED!, JOIN!, 1P/2P PUYO PUYO (centred) |
 | Entry screen: 2Pのスタートボタンを押してね over the rabbit still waiting | PUSH 2P START! (and 1P) |
 | Tower: 相手をえらんでね, ここにいる | PICK YOUR RIVAL, YOU ARE HERE |

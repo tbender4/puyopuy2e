@@ -18,7 +18,7 @@ def jmp(prog, at, to, length):
     prog[at:at + length] = code
 
 
-def build(prog):
+def build(prog, logo_mode=logo.DEFAULT_MODE):
     prog = bytearray(prog)
     # text engine: 8x16 glyphs
     eng = patch_file('text8.bin')
@@ -38,7 +38,7 @@ def build(prog):
     streams = gfx.Streams(prog)
     titles.apply(streams)
     labels.apply(streams)
-    logo.apply(prog, streams)
+    logo.apply(prog, streams, logo_mode)
     labels.apply_service(prog)
     labels.apply_yay(prog, streams)
     labels.apply_sign(prog, streams)
