@@ -186,10 +186,10 @@ Output, the files of `puyopuy2e.zip` (by `--logo` mode):
 
 | `--logo` | File | Size | CRC32 | SHA1 | From |
 |---|---|---|---|---|---|
-| `no-red-puyos` (default) | pp2e-17241.ic32 | 524288 | aec849c7 | 160a5e645e3bcc7f3b17ead50c6ac4beff751623 | epr-17241.ic32, changed |
-| `no-red-puyos` (default) | pp2e-17240.ic31 | 524288 | 1f42ef65 | 6dbba7bb4280c9cf5ca4655ae937334ba5cc2a73 | epr-17240.ic31, changed |
-| `with-red-puyos` | pp2e-17241.ic32 | 524288 | cb15dce8 | 226b8cfbc6596a8246558021ba0b91b81bd9677c | epr-17241.ic32, changed |
-| `with-red-puyos` | pp2e-17240.ic31 | 524288 | c1bba333 | e15260d85cd6c70c56313e977aa4d4ff8f8938e5 | epr-17240.ic31, changed |
+| `no-red-puyos` (default) | pp2e-17241.ic32 | 524288 | 30aa4d00 | c5bd269591ce93e900131e439a744fd0f14bb263 | epr-17241.ic32, changed |
+| `no-red-puyos` (default) | pp2e-17240.ic31 | 524288 | 9df07ff6 | 322029b9f355135bf7d0080b2d9f89a7f259e6c8 | epr-17240.ic31, changed |
+| `with-red-puyos` | pp2e-17241.ic32 | 524288 | fd4fbd02 | a159f3c00406fb4f584ec78110f35d6b3e415314 | epr-17241.ic32, changed |
+| `with-red-puyos` | pp2e-17240.ic31 | 524288 | 9931ce5b | e8b852b99eb333ecfae3ebfbc0f8b95cdba1c235 | epr-17240.ic31, changed |
 | `original` | pp2e-17241.ic32 | 524288 | 3a6607d1 | 1ed6b81ab2c480c3281d01ede7a7f67f539ed358 | epr-17241.ic32, changed |
 | `original` | pp2e-17240.ic31 | 524288 | c375d2c5 | 87a6454ec52c6f57413203a53095e762cf36ae67 | epr-17240.ic31, changed |
 | all | epr-17239.ic4 | 524288 | 020ff6ef | 6095b8277b47a6fd7a9721f15a70ae5bf6be9b1a | copied |
