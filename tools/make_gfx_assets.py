@@ -27,19 +27,63 @@ def logo():
     """"Puyo" from assets/puyopuyo_logo.jpg (its first word), 96 x 64 (94 x 53 placed at
     y=8 so the sprite split at y=24 and the 'y' tail at y=56 land on tile rows), in the
     logo's colours; the near-white background transparent"""
+    import collections
     from PIL import Image
     src = Image.open(os.path.join(HERE, '..', 'assets', 'puyopuyo_logo.jpg')).convert('RGB')
     word = src.crop((0, 0, 286, src.height))
+    w, h = word.size
+    px = word.load()
+    dirs = ((-1, 0), (1, 0), (0, -1), (0, 1))
+    is_bg = lambda rgb: rgb[1] > 170 and rgb[2] > 170
+
+    # flood-fill exterior and P/o holes (leaving small interior highlights alone);
+    # repaint bg dark maroon so downscaling blends edges to dark red, not white
+    fg, alpha = word.copy(), Image.new('L', (w, h), 255)
+    fpx, apx = fg.load(), alpha.load()
+    vis = [[False] * w for _ in range(h)]
+    for y in range(h):
+        for x in range(w):
+            if vis[y][x] or not is_bg(px[x, y]):
+                continue
+            comp, q, border = [], collections.deque([(x, y)]), False
+            vis[y][x] = True
+            while q:
+                cx, cy = q.popleft()
+                comp.append((cx, cy))
+                if cx in (0, w - 1) or cy in (0, h - 1):
+                    border = True
+                for dx, dy in dirs:
+                    nx, ny = cx + dx, cy + dy
+                    if 0 <= nx < w and 0 <= ny < h and not vis[ny][nx] and is_bg(px[nx, ny]):
+                        vis[ny][nx] = True
+                        q.append((nx, ny))
+            if border or len(comp) >= 150:
+                for cx, cy in comp:
+                    apx[cx, cy] = 0
+                    fpx[cx, cy] = LOGO_PALETTE[2]
+
     bbox = word.point(lambda v: 255 if v < 200 else 0).convert('L').getbbox()
-    word = word.crop(bbox).resize((94, 53), Image.LANCZOS)
+    rgb_s = fg.crop(bbox).resize((94, 53), Image.BOX)
+    alp_s = alpha.crop(bbox).resize((94, 53), Image.BOX)
     img = [[0] * 96 for _ in range(64)]
     for y in range(53):
         for x in range(94):
-            r, g, b = word.getpixel((x, y))
-            if r > 215 and g > 200 and b > 200:
+            if alp_s.getpixel((x, y)) < 128:
                 continue
-            best = min(LOGO_PALETTE, key=lambda k: sum((a - c) ** 2 for a, c in zip(LOGO_PALETTE[k], (r, g, b))))
-            img[8 + y][x] = best
+            r, g, b = rgb_s.getpixel((x, y))
+            img[8 + y][x] = min(LOGO_PALETTE, key=lambda k: sum((a - c) ** 2 for a, c in zip(LOGO_PALETTE[k], (r, g, b))))
+
+    # keep outer boundary in dark red (2/3) like the original ぷよぷよ and drop 1px spikes
+    for y in range(64):
+        for x in range(96):
+            v = img[y][x]
+            if v >= 8 and any(0 <= y + dy < 64 and 0 <= x + dx < 96 and img[y + dy][x + dx] == 0 for dx, dy in dirs):
+                img[y][x] = 3 if v <= 10 else 2
+    spikes = [(x, y) for y in range(64) for x in range(96) if img[y][x] and
+              sum(1 for dx, dy in dirs if 0 <= y + dy < 64 and 0 <= x + dx < 96 and img[y + dy][x + dx]) <= 1]
+    for x, y in spikes:
+        img[y][x] = 0
+
     pal = [(0, 0, 0)] * 16
     for k, c in LOGO_PALETTE.items():
         pal[k] = c
