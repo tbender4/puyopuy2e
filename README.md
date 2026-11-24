@@ -68,7 +68,7 @@ Hey dude! Help me out for a couple of :beers: or a :coffee:!<br/>
 | Title logo ぷよぷよ通 | redrawn as "Puyo Puyo 通" (`--logo`: `no-red-puyos` default, `with-red-puyos`, or `original`) |
 | Entry screen: 参加者募集中, 参加, ひとりでぷよぷよ ... | PLAYERS WANTED!, JOIN!, 1P/2P PUYO PUYO (centred) |
 | Entry screen: 2Pのスタートボタンを押してね over the rabbit still waiting | PUSH 2P START! (and 1P) |
-| Tower: 相手をえらんでね, ここにいる | PICK YOUR RIVAL, YOU ARE HERE |
+| Tower: 相手をえらんでね, ここにいる (Nomi) | PICK YOUR RIVAL, I'M HERE (plus Nomi's blown-up I'M HERE! / YAY! / K.O. sprites) |
 | 乱入可能 sign, 連鎖 counter, 全消し | JOIN IN!, CHAIN, ALL CLEAR |
 | 相殺 in a four-player (linked) match | OFFSET |
 | ばたんきゅ～ over a knocked-out player's field, big and in the small fields of the score panel | K.O. |
