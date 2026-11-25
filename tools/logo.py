@@ -159,3 +159,134 @@ def apply(prog, streams, mode=DEFAULT_MODE):
                     low = prog[e + 3]
                     attr = prog[e + 4] << 8 | prog[e + 5]
                     prog[e:e + 8] = struct.pack('>hBBHh', RED_Y, (2 << 2) | 1, low, attr, RED_X[g])
+
+
+# Shared scrolling 'ぷよぷよ通' -> 'Puyo Puyo 2 通' Tower background wallpaper (Arcade & Mega Drive).
+# Stream 0x0c497d holds the 81 wallpaper tiles (2..82) contiguously at tiles 260..340 (base=258).
+WALLPAPER_TILES = 0x0c497d
+_PUYO_LUMA = {2: 30, 3: 40, 4: 49, 5: 59, 6: 69, 8: 77, 10: 119, 11: 142, 12: 169, 13: 208, 15: 231}
+_WP_PUYO_CACHE = None
+
+
+def _wallpaper_puyo_sprite():
+    """Downscale assets/gfx/logo_puyo.png into a 55x24 glossy blue 'Puyo' sprite (indices 8..13)."""
+    global _WP_PUYO_CACHE
+    if _WP_PUYO_CACHE is not None:
+        return _WP_PUYO_CACHE
+    src = png.read(os.path.join(HERE, '..', 'assets', 'gfx', 'logo_puyo.png'))
+    crop = [row[0:94] for row in src[8:61]]
+    src_w, src_h, tw, th = 94, 53, 53, 22
+    mask = [[0] * tw for _ in range(th)]
+    bright = [[0.0] * tw for _ in range(th)]
+    for y in range(th):
+        sy0, sy1 = y * src_h / th, (y + 1) * src_h / th
+        for x in range(tw):
+            sx0, sx1 = x * src_w / tw, (x + 1) * src_w / tw
+            tot = cov = lsum = 0.0
+            for sy in range(int(sy0), min(src_h, int(sy1) + 1)):
+                wy = min(sy + 1, sy1) - max(sy, sy0)
+                if wy <= 0:
+                    continue
+                for sx in range(int(sx0), min(src_w, int(sx1) + 1)):
+                    wx = min(sx + 1, sx1) - max(sx, sx0)
+                    if wx <= 0:
+                        continue
+                    w = wx * wy
+                    tot += w
+                    v = crop[sy][sx]
+                    if v:
+                        cov += w
+                        lsum += w * _PUYO_LUMA[v]
+            if cov / tot >= 0.36:
+                mask[y][x] = 1
+                bright[y][x] = lsum / cov
+    out = [[0] * (tw + 2) for _ in range(th + 2)]
+    for y in range(th):
+        for x in range(tw):
+            if not mask[y][x]:
+                continue
+            b = bright[y][x]
+            top_e = y == 0 or not mask[y - 1][x]
+            left_e = x == 0 or not mask[y][x - 1]
+            bot_e = y == th - 1 or not mask[y + 1][x]
+            right_e = x == tw - 1 or not mask[y][x + 1]
+            if b >= 115 or (top_e and left_e and b >= 60):
+                c = 13
+            elif b >= 68:
+                c = 13 if (top_e or left_e) else 12
+            elif b >= 52:
+                c = 10 if (bot_e or right_e) else (12 if (top_e or left_e) else 11)
+            elif b >= 38:
+                c = 9 if (bot_e or right_e) else 10
+            else:
+                c = 9
+            out[y + 1][x + 1] = c
+    final = [r[:] for r in out]
+    for y in range(th + 2):
+        for x in range(tw + 2):
+            if not out[y][x] and any(
+                0 <= x + dx < tw + 2 and 0 <= y + dy < th + 2 and out[y + dy][x + dx]
+                for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1))
+            ):
+                final[y][x] = 8
+    _WP_PUYO_CACHE = final
+    return final
+
+
+def apply_wallpaper(tiles, base=0, mode=DEFAULT_MODE):
+    """Replace the 'ぷよぷよ' tiles (base+24..37, 43..56, 62..74) with glossy blue 'Puyo Puyo',
+    preserving the '2' medallion, '通' kanji, and shared tile 66 (col 5 & col 12 on row 5) in place."""
+    if mode not in MODES:
+        raise ValueError('unknown logo mode: %r' % (mode,))
+    if mode == 'original':
+        return
+    # Reconstruct rows 1..2 (y=8..23, x=48..103) from the tile buffer to mirror the exact medallion rim
+    top = [[14] * 168 for _ in range(24)]
+    for tr, row_tids in ((1, (7, 8, 9, 10, 11, 12, -7)), (2, (13, 14, 15, 16, 17, 18, -13))):
+        for idx, tid in enumerate(row_tids):
+            hf = tid < 0
+            blk = gfx.tile_get(tiles, base + abs(tid))
+            for y in range(8):
+                for x in range(8):
+                    top[tr * 8 + y][(6 + idx) * 8 + x] = blk[y][7 - x if hf else x]
+
+    # Build clean 120x24 band (x=0..119, y=24..47): cyan backdrop + mirrored '2' medallion + '2' stem/bar
+    band = [[14] * 120 for _ in range(24)]
+    cx, cy = 75.5, 27.5
+    for dy in range(24):
+        y = 24 + dy
+        ref_y = 23 if y <= 31 else (55 - y)
+        for x in range(48, 104):
+            r = ((x - cx) ** 2 + (y - cy) ** 2) ** 0.5
+            if r >= 22.0:
+                if r <= 28.5:
+                    band[dy][x] = top[ref_y][x]
+            else:
+                band[dy][x] = (14, 13, 12, 11, 10, 9)[min(5, max(0, (y - 23) // 4))]
+        if 24 <= y <= 38:
+            mx = 85.0 - 17.5 * (y - 24) / 14.0
+            for x in range(56, 95):
+                d = abs(x - mx)
+                if d <= 5.2:
+                    band[dy][x] = 9 if d <= 3.8 else 8
+        if 37 <= y <= 44:
+            for x in range(60, 92):
+                band[dy][x] = 8 if (y in (37, 44) or x in (60, 91)) else (11 if y <= 39 else 9)
+
+    puyo = _wallpaper_puyo_sprite()
+    for x0 in (8, 64):
+        for y, row in enumerate(puyo):
+            for x, v in enumerate(row):
+                if v:
+                    band[y][x0 + x] = v
+
+    # Write tiles 24..37 (row 3), 43..56 (row 4), and 62..74 (row 5; col 5 & col 12 share tile 66)
+    row_specs = (
+        (0, [(c, 23 + c) for c in range(1, 15)]),
+        (1, [(c, 42 + c) for c in range(1, 15)]),
+        (2, [(c, 61 + c) for c in range(1, 12)] + [(13, 73), (14, 74)]),
+    )
+    for ty, pairs in row_specs:
+        for tc, tid in pairs:
+            cell = [band[ty * 8 + y][tc * 8:tc * 8 + 8] for y in range(8)]
+            gfx.tile_put(tiles, base + tid, cell)

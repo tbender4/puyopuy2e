@@ -318,6 +318,8 @@ def build(prog, logo_mode=logo.DEFAULT_MODE):
     streams = gfx.Streams(prog)
     _apply_titles(streams)
     _apply_logo(prog, streams, logo_mode)
+    if logo_mode != 'original':
+        logo.apply_wallpaper(streams.get(logo.WALLPAPER_TILES), 258, logo_mode)
     _apply_shared_labels(prog, streams)
     at = _apply_levels(prog, streams, at, DATA_END)
     at = md_screens.apply(prog, streams, at, DATA_END)
