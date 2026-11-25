@@ -10,7 +10,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(ROOT, 'font'))
 sys.path.insert(0, os.path.join(ROOT, 'text'))
-import font, gfx, labels, levels, logo, md_screens, png, saturn_arch, saturn_iso, script_en, text, title_font, titles
+import font, gfx, labels, levels, logo, md_screens, png, saturn_arch, saturn_iso, saturn_ui, script_en, text, title_font, titles
 
 RAM_BASE = 0x06008000
 TEXT_PUT = 0x009488
@@ -54,7 +54,7 @@ SATURN_MODES = (
 )
 
 TARGET_BANKS = (
-    'DEMO_G00.BIN', 'DEMO_G03.BIN', 'DEMO_G04.BIN', 'DEMO_G05.BIN',
+    'DEMO_G00.BIN', 'DEMO_G02.BIN', 'DEMO_G03.BIN', 'DEMO_G04.BIN', 'DEMO_G05.BIN',
     'DEMO_G06.BIN', 'GFILE08.BIN', 'GFILE09.BIN', 'FACE_G03.BIN',
 )
 
@@ -481,6 +481,7 @@ def build(src_bin, logo_mode=logo.DEFAULT_MODE):
     with open(src_bin, 'rb') as f:
         entries = saturn_iso.parse_iso(f)
         prog = bytearray(saturn_iso.read_iso_file(f, '0', entries))
+        hp = saturn_arch.unpack_hpuyodt(saturn_iso.read_iso_file(f, 'H_PUYODT.BIN', entries))
         banks = {name: saturn_arch.unpack_bank(saturn_iso.read_iso_file(f, name, entries)) for name in TARGET_BANKS}
 
     # 1. /0;1 in-place ASCII strings + Milestone B SH-2 8x16 tutorial text engine & font
@@ -550,7 +551,11 @@ def build(src_bin, logo_mode=logo.DEFAULT_MODE):
         banks['DEMO_G03.BIN']['chunks'][16], banks['DEMO_G03.BIN']['chunks'][17],
     )
 
-    out = {'0': bytes(prog)}
+    # 5. Milestone C: Saturn-native H_PUYODT.BIN UI screens + DEMO_G02 Character Select START!
+    saturn_ui.apply_hpuyodt(hp)
+    saturn_ui.apply_demo_g02_start(banks['DEMO_G02.BIN']['chunks'][12], banks['DEMO_G02.BIN']['chunks'][13])
+
+    out = {'0': bytes(prog), 'H_PUYODT.BIN': saturn_arch.pack_hpuyodt(hp)}
     for name in TARGET_BANKS:
         out[name] = saturn_arch.pack_bank(banks[name])
     return out

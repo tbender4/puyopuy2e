@@ -13,7 +13,7 @@ sys.meta_path.insert(0, _BlockPIL())
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
-import logo, lz, saturn_arch, saturn_build, saturn_iso
+import logo, lz, saturn_arch, saturn_build, saturn_iso, saturn_ui
 
 SATURN_BIN = os.path.join(ROOT, 'saturn', 'PUYO_PUYO_TSU____ (Track 1).bin')
 MD_ROM = os.path.join(ROOT, 'Puyo Puyo 2 (Japan) (v1.1).md')
@@ -400,6 +400,56 @@ def test_sh2_text_put_sim():
     print(f'PASS SH-2 text_put behavioral simulation ({len(code)} B, miss/space/0/hit/2nd-glyph verified)')
 
 
+def test_saturn_ui_units():
+    # 1. patch_vdp2_screen: keeps untouched tiles/art intact, deduplicates glyphs, enforces VRAM cap
+    tiles = bytearray(20 * 32)
+    tiles[1 * 32:2 * 32] = b'\x77' * 32   # preserved border tile 1
+    tiles[2 * 32:3 * 32] = b'\x88' * 32   # old Japanese text tile 2 (erased -> reusable)
+    tmap = bytearray(10 * 4 * 2)
+    struct.pack_into('>H', tmap, 0, 1)    # (0,0) kept border
+    struct.pack_into('>H', tmap, 2, 2)    # (1,0) erased old text
+    saturn_ui.patch_vdp2_screen(tiles, tmap, 10, 4, [(1, 0, 9, 4)], [(2, 1, 'AA')], outline=1)
+    assert tiles[1 * 32:2 * 32] == b'\x77' * 32 and struct.unpack_from('>H', tmap, 0)[0] == 1
+    assert struct.unpack_from('>H', tmap, 2)[0] == 0  # erased cell zeroed
+    # Two 'A's with outline must share tiles (<= 4 unique tiles for 2x2 cells)
+    t_a0 = struct.unpack_from('>H', tmap, (1 * 10 + 2) * 2)[0]
+    t_a1 = struct.unpack_from('>H', tmap, (1 * 10 + 3) * 2)[0]
+    assert t_a0 > 1 and t_a0 == t_a1
+    # VRAM budget overflow must raise ValueError
+    tiny_tiles = bytearray(3 * 32)
+    tiny_map = bytearray(10 * 2 * 2)
+    try:
+        saturn_ui.patch_vdp2_screen(tiny_tiles, tiny_map, 10, 2, [(0, 0, 10, 2)], [(0, 0, 'ABCD')])
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('expected VRAM overflow ValueError')
+
+    # 2. _patch_hp0_hardness preserves digits 0..19 & curves 20..35, writes 36..75
+    hp0 = bytearray(76 * 32)
+    hp0[:36 * 32] = b'\x55' * (36 * 32)
+    saturn_ui._patch_hp0_hardness(hp0)
+    assert hp0[:36 * 32] == b'\x55' * (36 * 32) and any(hp0[36 * 32:])
+
+    # 3. _patch_slot_label packs 2x2 row-major blocks with full 1px left outline when room exists
+    s77 = bytearray(24 * 32)
+    saturn_ui._patch_slot_label(s77, 'NEW GAME', 6)
+    assert any(s77[:4 * 32]) and not any(s77[20 * 32:])  # trailing 2 blank blocks
+    # First column of pixels in tile 0 (row 0..15) should include outline pixel (1) thanks to x_shift=1
+    assert 1 in [b >> 4 for b in s77[0:32:4]]
+
+    # 4. apply_demo_g02_start preserves 0x00..0x18 and 0x50.. while writing START! inside 0x19..0x4f
+    g2_t = bytearray(0x60 * 32)
+    g2_t[1 * 32:0x19 * 32] = b'\x33' * (0x18 * 32)
+    g2_t[0x50 * 32:] = b'\x44' * (0x10 * 32)
+    g2_m = bytearray(12 * 5 * 2)
+    saturn_ui.apply_demo_g02_start(g2_t, g2_m)
+    assert g2_t[1 * 32:0x19 * 32] == b'\x33' * (0x18 * 32) and g2_t[0x50 * 32:] == b'\x44' * (0x10 * 32)
+    used_ids = {struct.unpack_from('>H', g2_m, i)[0] for i in range(0, len(g2_m), 2)}
+    assert used_ids <= ({0} | set(range(0x19, 0x50))) and len(used_ids) > 10
+    print('PASS Milestone C saturn_ui synthetic unit tests (VDP2 screen, hardness, slot, START!)')
+
+
 def test_real_disc():
     if not os.path.isfile(SATURN_BIN):
         print('SKIP real Saturn disc tests (Track 1 .bin not found)')
@@ -455,11 +505,13 @@ def test_real_disc():
     else:
         print('SKIP MD <-> Saturn proof (MD v1.1 ROM not found)')
 
-    # 5. Milestone A build verification across all 3 logo modes (caps, logo invariants, blank tiles)
+    # 5. Milestone A+B+C build verification across all 3 logo modes (caps, invariants, blank tiles, VRAM budgets)
     with open(SATURN_BIN, 'rb') as f:
         orig_0 = saturn_iso.read_iso_file(f, '0', entries)
         orig_g04 = saturn_iso.read_iso_file(f, 'DEMO_G04.BIN', entries)
         orig_logo = bytes(saturn_arch.unpack_bank(orig_g04)['chunks'][7])
+        orig_hp_lens = [len(c) for c in hp['chunks']]
+        orig_g02_t12 = bytes(saturn_arch.unpack_bank(saturn_iso.read_iso_file(f, 'DEMO_G02.BIN', entries))['chunks'][12])
     groups0 = logo.read_groups(orig_0, saturn_build.LOGO_TABLES[0])
     for mode in logo.MODES:
         repl = saturn_build.build(SATURN_BIN, logo_mode=mode)
@@ -470,9 +522,16 @@ def test_real_disc():
         for name, data in repl.items():
             cap = entries[name]['sectors'] * saturn_iso.SECTOR_USER
             assert len(data) <= cap, f'{mode} {name}: {len(data)} B exceeds ISO cap {cap} B'
-            if name != '0':
+            if name == 'H_PUYODT.BIN':
+                assert len(data) <= saturn_arch.LOW_WRAM_SLOT
+                hp_new = saturn_arch.unpack_hpuyodt(data)
+                assert [len(c) for c in hp_new['chunks']] == orig_hp_lens
+            elif name != '0':
                 assert len(data) <= saturn_arch.LOW_WRAM_SLOT
                 unpacked[name] = saturn_arch.unpack_bank(data)
+        # Verify DEMO_G02[12] preserved bg stripes (0x00..0x18) & all 36 rival portraits (0x50..0x19c)
+        g02_new = bytes(unpacked['DEMO_G02.BIN']['chunks'][12])
+        assert g02_new[:0x19 * 32] == orig_g02_t12[:0x19 * 32] and g02_new[0x50 * 32:] == orig_g02_t12[0x50 * 32:]
         # Verify blank tiles stay all-zero after replace_blocks
         assert not any(unpacked['DEMO_G06.BIN']['chunks'][13][0x04 * 32:0x05 * 32])
         assert not any(unpacked['DEMO_G03.BIN']['chunks'][17][0x9c * 32:0x9d * 32])
@@ -516,12 +575,13 @@ def test_real_disc():
                 elif op == 0x0A: break
                 else: p += 2
         assert total_pages == 12
-    print('PASS Milestone A+B Saturn build (3/3 logo modes, SH-2 text/font/12 tut pages, blank tiles, caps)')
+    print('PASS Milestone A+B+C Saturn build (3/3 logo modes, SH-2 text/12 tuts, 23 H_PUYODT UIs, START!, caps)')
 
 
 if __name__ == '__main__':
     test_mode1_and_iso_patcher()
     test_lzss_arch_and_vdp1_units()
     test_sh2_text_put_sim()
+    test_saturn_ui_units()
     test_real_disc()
     print('All Saturn tests passed (stdlib-only).')
