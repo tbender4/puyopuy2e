@@ -13,7 +13,7 @@ sys.meta_path.insert(0, _BlockPIL())
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
-import lz, saturn_arch, saturn_iso
+import logo, lz, saturn_arch, saturn_build, saturn_iso
 
 SATURN_BIN = os.path.join(ROOT, 'saturn', 'PUYO_PUYO_TSU____ (Track 1).bin')
 MD_ROM = os.path.join(ROOT, 'Puyo Puyo 2 (Japan) (v1.1).md')
@@ -23,9 +23,6 @@ BANKS = (
     'DEMO_G05.BIN', 'DEMO_G06.BIN', 'GFILE08.BIN', 'GFILE09.BIN',
     'FACE_G00.BIN', 'FACE_G01.BIN', 'FACE_G02.BIN', 'FACE_G03.BIN',
 )
-
-# Verified per-sprite (w_tiles, h_tiles) layout for KO Big (GFILE08[14] == MD 0x086A7F)
-KO_BIG_SPECS = [(4, 4), (4, 4), (3, 4), (1, 2), (2, 3), (4, 3), (3, 2)]
 
 
 def _make_mini_iso(bin_path, cue_path, track2_path, files):
@@ -277,12 +274,52 @@ def test_real_disc():
             md = mf.read()
         md_ko, _ = lz.decompress(md, 0x086A7F)
         sat_ko = bytes(gfile08['chunks'][14])
-        assert saturn_arch.tiles_to_sprites(md_ko, KO_BIG_SPECS) == sat_ko
-        assert bytes(saturn_arch.sprites_to_tiles(sat_ko, KO_BIG_SPECS)) == md_ko
+        assert saturn_arch.tiles_to_sprites(md_ko, saturn_build.KO_BIG_SPECS) == sat_ko
+        assert bytes(saturn_arch.sprites_to_tiles(sat_ko, saturn_build.KO_BIG_SPECS)) == md_ko
         assert bytes(gfile09['raw'][0]) == md[0x093D60:0x093D60 + 8224]
         print('PASS real MD v1.1 <-> Saturn VDP1 sprite proof (KO Big) + 1bpp font identity')
     else:
         print('SKIP MD <-> Saturn proof (MD v1.1 ROM not found)')
+
+    # 5. Milestone A build verification across all 3 logo modes (caps, logo invariants, blank tiles)
+    with open(SATURN_BIN, 'rb') as f:
+        orig_0 = saturn_iso.read_iso_file(f, '0', entries)
+        orig_g04 = saturn_iso.read_iso_file(f, 'DEMO_G04.BIN', entries)
+        orig_logo = bytes(saturn_arch.unpack_bank(orig_g04)['chunks'][7])
+    groups0 = logo.read_groups(orig_0, saturn_build.LOGO_TABLES[0])
+    for mode in logo.MODES:
+        repl = saturn_build.build(SATURN_BIN, logo_mode=mode)
+        assert len(repl['0']) == entries['0']['size']
+        assert repl['0'][0x6d3a6:0x6d3b0] == b'RULE SET  '
+        assert repl['0'][0x6d294:0x6d29e] == b'COCKATRICE'
+        unpacked = {}
+        for name, data in repl.items():
+            cap = entries[name]['sectors'] * saturn_iso.SECTOR_USER
+            assert len(data) <= cap, f'{mode} {name}: {len(data)} B exceeds ISO cap {cap} B'
+            if name != '0':
+                assert len(data) <= saturn_arch.LOW_WRAM_SLOT
+                unpacked[name] = saturn_arch.unpack_bank(data)
+        # Verify blank tiles stay all-zero after replace_blocks
+        assert not any(unpacked['DEMO_G06.BIN']['chunks'][13][0x04 * 32:0x05 * 32])
+        assert not any(unpacked['DEMO_G03.BIN']['chunks'][17][0x9c * 32:0x9d * 32])
+        assert not any(unpacked['GFILE09.BIN']['chunks'][4][0x08 * 32:0x09 * 32])
+        # Verify per-mode logo invariants on DEMO_G04[7] and LOGO_TABLES
+        logo_chunk = bytes(unpacked['DEMO_G04.BIN']['chunks'][7])
+        g0_cnt = struct.unpack_from('>H', repl['0'], groups0[0][0])[0]
+        if mode == 'original':
+            assert repl['DEMO_G04.BIN'] == orig_g04 and g0_cnt == 4
+        elif mode == 'no-red-puyos':
+            assert logo_chunk[:0x8a0] != orig_logo[:0x8a0] and logo_chunk[0x8a0:] == orig_logo[0x8a0:]
+            assert g0_cnt == 3
+            for g in logo.RED_X:
+                assert struct.unpack_from('>h', repl['0'], groups0[g][0] + 2)[0] == logo.OFFSCREEN_Y
+        else:
+            assert logo_chunk[:0x8a0] != orig_logo[:0x8a0] and logo_chunk[0x8a0:0xc00] != orig_logo[0x8a0:0xc00]
+            assert logo_chunk[0xc00:] == orig_logo[0xc00:]
+            for g in logo.RED_X:
+                at = groups0[g][0]
+                assert struct.unpack_from('>hB', repl['0'], at + 2) == (logo.RED_Y, (2 << 2) | 1)
+    print('PASS Milestone A Saturn build (3/3 logo modes, invariants, blank tiles, RAM + ISO caps)')
 
 
 if __name__ == '__main__':

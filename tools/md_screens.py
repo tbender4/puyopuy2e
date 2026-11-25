@@ -239,18 +239,15 @@ def _draw_mouth_text(clean, cavity, lines, frame_idx):
     return out
 
 
-def apply_mode_select(streams):
-    tiles, tmap = streams.get(0x100626), streams.get(0x10005a)
-    # Combine header (33x3 at 0x000, uses 69/98 tiles) + all 9 Carbuncle mouth frames in one
-    # replace_blocks call so header's 29 spare tiles join the 233-tile mouth pool (331 total).
+def patch_mode_select(tiles, tmap, modes, blank, template_base=0x552):
+    """Patch Mode Select header (33x3 at 0x000) and animated Carbuncle mouths for `modes`."""
     hdr = _remap(png.read(os.path.join(labels.ASSETS, 'md_choose_mode.png')), HEADER_REMAP)
-    # Seed clean mouth templates from mode 2 (おぷしょん, single line with clean bottom lip)
-    templates = [_mouth_cavity_and_erase(gfx.block_pixels(tiles, tmap, 0x282 + (6 + f) * 0x78, 10, 6, 10), f)
+    templates = [_mouth_cavity_and_erase(gfx.block_pixels(tiles, tmap, template_base + f * 0x78, 10, 6, 10), f)
                  for f in range(3)]
     blocks = [(0x000, 33, 3, hdr, None)]
-    for m, lines in enumerate(MOUTH_LABELS):
+    for base, lines in modes:
         for f in range(3):
-            off = 0x282 + (m * 3 + f) * 0x78
+            off = base + f * 0x78
             clean, cavity = templates[f]
             img = _draw_mouth_text(clean, cavity, lines, f)
             crop = lambda r0, c0, cw, ch: [row[c0 * 8:(c0 + cw) * 8] for row in img[r0 * 8:(r0 + ch) * 8]]
@@ -261,7 +258,12 @@ def apply_mode_select(streams):
                 blocks.append((off + 22, 8, 4, crop(1, 1, 8, 4), 10))
             else:
                 blocks.append((off + 22, 8, 3, crop(1, 1, 8, 3), 10))
-    gfx.replace_blocks(tiles, tmap, blocks, blank=0xbc)
+    gfx.replace_blocks(tiles, tmap, blocks, blank=blank)
+
+
+def apply_mode_select(streams):
+    modes = tuple((0x282 + m * 3 * 0x78, lines) for m, lines in enumerate(MOUTH_LABELS))
+    patch_mode_select(streams.get(0x100626), streams.get(0x10005a), modes, blank=0xbc)
 
 
 def apply_pause(streams):
