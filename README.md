@@ -10,10 +10,10 @@ and level select screens, the join-in messages, the continue and win screens and
 service menu. The character names follow the English names of the Super Puyo Puyo 2 fan
 translation by J2e Translations (Skeleton-T, Mini Zombie, Sukiyapodes, ...).
 
-![Puyo Puyo 2 English in mame2003-plus](screenshots/core_title.png)
+![the Puyo Puyo 2 English title in MAME](screenshots/core_title.png)
 ![a tutorial page in mame2003-plus](screenshots/core_tutorial.png)
 
-*`puyopuy2e` in the mame2003-plus core: the title and a tutorial page.*
+*`puyopuy2e`: the title (MAME) and a tutorial page (mame2003-plus core).*
 
 ## For dummies
 
