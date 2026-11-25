@@ -10,9 +10,9 @@ twice for both ぷよ), the 3 red handakuten puyo frames, 通 (8 sprites), and t
 puyo frames. Their tiles are stream TILES (VRAM tile 0x4e0 on); G0+G1 occupy 0x00..0x44
 (69 tiles), G2..G4 occupy 0x45..0x5f, and G5..G8 occupy 0x60..0xd8.
 
-In the English modes, G0+G1 use 62 of the 69 tiles and peak at 280/320 sprite pixels per
+In the English modes, G0+G1 use 66 of the 69 tiles and peak at 296/320 sprite pixels per
 scanline (11/20 sprites, SOVR=0 on Sega 315-5313 VDP hardware)."""
-import os, struct
+import collections, os, struct
 import gfx, png
 
 MODES = ('original', 'no-red-puyos', 'with-red-puyos')
@@ -29,12 +29,39 @@ RED_Y = -5                      # y offset placing the cropped 3x2 red puyo flus
 OFFSCREEN_Y = -0x200            # culled by the sprite parser (0x0a840) before VDP SAT
 
 # 96x64 canvas (assets/gfx/logo_puyo.png): (xr, yr, w, h, sx, sy) per sprite.
-# G0: P top (4x3), P bottom (4x4), u (2x4); G1: y (3x4), o (3x4), y descender tail (2x1).
+# G0 (Pu, x=0..52): P top (4x3), P bottom (4x4), u (3x4);
+# G1 (yo, x=50..93): y (3x4), o (3x4), y descender tail (2x1).
 GROUP_LAYOUT = (
-    ((2, -13, 4, 3, 0, 0), (2, 11, 4, 4, 0, 24), (34, 11, 2, 4, 32, 24)),
-    ((-6, 11, 3, 4, 48, 24), (18, 11, 3, 4, 72, 24), (-4, 43, 2, 1, 50, 56)),
+    ((2, -13, 4, 3, 0, 0), (2, 11, 4, 4, 0, 24), (34, 11, 3, 4, 32, 24)),
+    ((-4, 11, 3, 4, 50, 24), (20, 11, 3, 4, 74, 24), (-4, 43, 2, 1, 50, 56)),
 )
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def _split_groups(img):
+    """Split logo_puyo.png by connected component into G0 ('Pu', left < 45) and G1 ('yo')
+    so the right edge of 'u' (x=50..52) stays with 'Pu' instead of dropping with 'yo'."""
+    h, w = len(img), len(img[0])
+    vis = [[False] * w for _ in range(h)]
+    out = [[[0] * w for _ in range(h)] for _ in range(2)]
+    for y in range(h):
+        for x in range(w):
+            if not img[y][x] or vis[y][x]:
+                continue
+            q, pts = collections.deque([(x, y)]), []
+            vis[y][x] = True
+            while q:
+                cx, cy = q.popleft()
+                pts.append((cx, cy))
+                for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                    nx, ny = cx + dx, cy + dy
+                    if 0 <= nx < w and 0 <= ny < h and img[ny][nx] and not vis[ny][nx]:
+                        vis[ny][nx] = True
+                        q.append((nx, ny))
+            dst = out[0 if min(px for px, _ in pts) < 45 else 1]
+            for cx, cy in pts:
+                dst[cy][cx] = img[cy][cx]
+    return out
 
 
 def read_groups(prog, at):
@@ -76,9 +103,11 @@ def apply(prog, streams, mode=DEFAULT_MODE):
 
     img = png.read(os.path.join(HERE, '..', 'assets', 'gfx', 'logo_puyo.png'))
     assert len(img) == 64 and len(img[0]) == 96
-    covered = {(x, y) for grp in GROUP_LAYOUT for (_, _, w, h, sx, sy) in grp
-               for y in range(sy, sy + h * 8) for x in range(sx, sx + w * 8)}
-    assert not any(v and (x, y) not in covered for y, row in enumerate(img) for x, v in enumerate(row))
+    group_imgs = _split_groups(img)
+    for g_img, grp in zip(group_imgs, GROUP_LAYOUT):
+        covered = {(x, y) for (_, _, w, h, sx, sy) in grp
+                   for y in range(sy, sy + h * 8) for x in range(sx, sx + w * 8)}
+        assert not any(v and (x, y) not in covered for y, row in enumerate(g_img) for x, v in enumerate(row))
 
     tiles = streams.get(TILES)
     blank = [[0] * 8 for _ in range(8)]
@@ -88,14 +117,15 @@ def apply(prog, streams, mode=DEFAULT_MODE):
     # pack G0 and G1 tiles column by column; G5..G8 (通 + green puyo) stay untouched
     next_tile = 0
     starts = []
-    for grp in GROUP_LAYOUT:
+    for g_img, grp in zip(group_imgs, GROUP_LAYOUT):
         grp_starts = []
         for (_, _, w, h, sx, sy) in grp:
             grp_starts.append(next_tile)
             for c in range(w):
                 for r in range(h):
                     x0, y0 = sx + 8 * c, sy + 8 * r
-                    gfx.tile_put(tiles, next_tile, [row[x0:x0 + 8] for row in img[y0:y0 + 8]])
+                    cell = [(row[x0:x0 + 8] + [0] * 8)[:8] for row in g_img[y0:y0 + 8]]
+                    gfx.tile_put(tiles, next_tile, cell)
                     next_tile += 1
         starts.append(grp_starts)
     assert next_tile <= FIRST_RED
