@@ -9,7 +9,15 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(ROOT, 'font'))
-import gfx, labels, levels, logo, md_screens, png, saturn_arch, saturn_iso, title_font, titles
+sys.path.insert(0, os.path.join(ROOT, 'text'))
+import font, gfx, labels, levels, logo, md_screens, png, saturn_arch, saturn_iso, script_en, text, title_font, titles
+
+RAM_BASE = 0x06008000
+TEXT_PUT = 0x009488
+TEXT_PUT_END = 0x0096FC
+TUT_SCRIPT_AT = 0x00BD00        # inside 4,472 B dead MD profile region (0x00BCA0..0x00CE17)
+TUT_SCRIPT_END = 0x00CE18
+TUT_PTR_REFS = ((0x043834, 0x06014E24), (0x043E74, 0x06015114))  # Part 1 (9 pages), Part 2 (3 pages)
 
 # Exact verified /0;1 in-place ASCII replacements (same length, null-terminated C strings)
 SATURN_STRINGS = (
@@ -62,6 +70,252 @@ class _Streams:
 
     def original(self, key):
         return self._orig[key]
+
+
+def assemble_text_put(base_pc=RAM_BASE + TEXT_PUT):
+    """Assemble leaf SH-2 8x16 text_put(r4=task, r5=u16 code) into bytes (fits in 628 B slot).
+
+    Uses only caller-saved r0..r7 (zero stack frame, pr/r8..r15 untouched). Expands 1bpp
+    8x16 Spleen glyphs at *(u32*)(r4+0x64) into two 4bpp VDP2 tiles at 0x25E00000 using the
+    existing 16-entry nibble LUT at 0x0607726C and 64-slot glyph cache at 0x0608D774."""
+    ops = []      # list of ('w', u16) | ('br', base_op, mask, lbl) | ('litw', rn, val) | ('litl', rn, val)
+    labels_pos = {}
+    pc = base_pc
+    lit_w = []    # (idx_in_ops, pc_of_op, rn, val)
+    lit_l = []
+
+    def L(name):
+        labels_pos[name] = pc
+
+    def W(word):
+        nonlocal pc
+        ops.append(('w', word))
+        pc += 2
+
+    def BR(op_base, bits, name):
+        nonlocal pc
+        ops.append(('br', op_base, bits, name, pc))
+        pc += 2
+
+    def MOVW_LIT(rn, val):
+        nonlocal pc
+        lit_w.append((len(ops), pc, rn, val))
+        ops.append(('litw', rn, val))
+        pc += 2
+
+    def MOVL_LIT(rn, val):
+        nonlocal pc
+        lit_l.append((len(ops), pc, rn, val))
+        ops.append(('litl', rn, val))
+        pc += 2
+
+    # 1. r5 &= 0xFFFF; r6 = VDP2 nametable addr = 0x25E10000 + (((Y << 6) + X) << 2)
+    W(0x655D)                   # extu.w  r5, r5
+    W(0x854C)                   # mov.w   @(0x18, r4), r0   ; cursor = (X << 8) | Y
+    W(0x610C)                   # extu.b  r0, r1            ; r1 = Y
+    W(0x4108); W(0x4108); W(0x4108)  # shll2 r1 x3          ; r1 = Y << 6
+    W(0x620D)                   # extu.w  r0, r2
+    W(0x4219)                   # shlr8   r2                ; r2 = X
+    W(0x312C)                   # add     r2, r1            ; (Y << 6) + X
+    W(0x4108)                   # shll2   r1                ; * 4 bytes/cell
+    MOVL_LIT(6, 0x25E10000)     # mov.l   .L_nt_base, r6
+    W(0x361C)                   # add     r1, r6            ; r6 = nt_addr
+
+    # 2. Space fast-path (code == 0x0000 or 0x0020): write blank interior tile 0x057D
+    W(0x2558)                   # tst     r5, r5
+    BR(0x8900, 8, 'space')      # bt      space
+    W(0xE020)                   # mov     #0x20, r0
+    W(0x3500)                   # cmp/eq  r0, r5
+    BR(0x8B00, 8, 'not_space')  # bf      not_space
+    L('space')
+    MOVW_LIT(2, 0x057D)         # mov.w   .L_blank, r2      ; 0x0000057D
+    W(0x2622)                   # mov.l   r2, @r6
+    MOVW_LIT(1, 0x0100)         # mov.w   .L_0100, r1
+    W(0x361C)                   # add     r1, r6
+    BR(0xA000, 12, 'advance')   # bra     advance
+    W(0x2622)                   # [delay] mov.l r2, @r6
+
+    # 3. Glyph cache scan at 0x0608D774 (64 x u16, stepped by 2)
+    L('not_space')
+    W(0xE050)                   # mov     #0x50, r0
+    W(0x034D)                   # mov.w   @(r0, r4), r3     ; count (0, 2, 4, ...)
+    W(0x633D)                   # extu.w  r3, r3
+    MOVL_LIT(1, 0x0608D774)     # mov.l   .L_cache, r1
+    W(0xE000)                   # mov     #0, r0            ; tile_off = 0
+    L('scan')
+    W(0x3032)                   # cmp/hs  r3, r0            ; T = (r0 >= count)
+    BR(0x8900, 8, 'miss')       # bt      miss
+    W(0x071D)                   # mov.w   @(r0, r1), r7
+    W(0x677D)                   # extu.w  r7, r7
+    W(0x3570)                   # cmp/eq  r7, r5
+    BR(0x8D00, 8, 'draw_nt')    # bt/s    draw_nt
+    W(0x6203)                   # [delay] mov r0, r2        ; r2 = hit tile_off
+    BR(0xA000, 12, 'scan')      # bra     scan
+    W(0x7002)                   # [delay] add #2, r0
+
+    # 4. Cache miss: store code, bump count += 2, expand 16 rows 1bpp -> 4bpp (64 B = 2 tiles)
+    L('miss')
+    W(0x0155)                   # mov.w   r5, @(r0, r1)     ; cache[count/2] = code
+    W(0x6233)                   # mov     r3, r2            ; r2 = tile_off
+    W(0x7302)                   # add     #2, r3
+    W(0xE050)                   # mov     #0x50, r0
+    W(0x0435)                   # mov.w   r3, @(r0, r4)     ; task->count = count + 2
+    W(0xE064)                   # mov     #0x64, r0
+    W(0x014E)                   # mov.l   @(r0, r4), r1     ; font_base
+    W(0x4508); W(0x4508)        # shll2   r5 x2             ; code << 4 (16 B/glyph)
+    W(0x315C)                   # add     r5, r1            ; r1 = glyph_src
+    W(0xE06A)                   # mov     #0x6A, r0
+    W(0x034D)                   # mov.w   @(r0, r4), r3     ; tile_base (0x8780)
+    W(0x633D)                   # extu.w  r3, r3
+    W(0x332C)                   # add     r2, r3            ; tile_base + tile_off
+    MOVW_LIT(0, 0x07FF)         # mov.w   .L_07ff, r0
+    W(0x2309)                   # and     r0, r3
+    W(0x4308); W(0x4308); W(0x4300)  # shll2 x2 + shll      ; << 5 (32 B/tile)
+    MOVL_LIT(5, 0x25E00000)     # mov.l   .L_vram, r5
+    W(0x335C)                   # add     r5, r3            ; r3 = VRAM dst
+    MOVL_LIT(5, 0x0607726C)     # mov.l   .L_lut, r5
+    W(0xE710)                   # mov     #16, r7
+    L('row')
+    W(0x6010)                   # mov.b   @r1, r0           ; hi nibble (keep r1)
+    W(0x600C)                   # extu.b  r0, r0
+    W(0x4009); W(0x4009)        # shlr2   r0 x2
+    W(0x4000)                   # shll    r0                ; * 2
+    W(0x005D)                   # mov.w   @(r0, r5), r0
+    W(0x2301)                   # mov.w   r0, @r3
+    W(0x7302)                   # add     #2, r3
+    W(0x6014)                   # mov.b   @r1+, r0          ; lo nibble (advance r1)
+    W(0xC90F)                   # and     #0x0F, r0
+    W(0x4000)                   # shll    r0                ; * 2
+    W(0x005D)                   # mov.w   @(r0, r5), r0
+    W(0x2301)                   # mov.w   r0, @r3
+    W(0x4710)                   # dt      r7
+    BR(0x8F00, 8, 'row')        # bf/s    row
+    W(0x7302)                   # [delay] add #2, r3
+
+    # 5. Write 2 vertical nametable entries (tile, tile+1) and advance cursor X += 1
+    L('draw_nt')
+    W(0xE06A)                   # mov     #0x6A, r0
+    W(0x034D)                   # mov.w   @(r0, r4), r3
+    W(0x633D)                   # extu.w  r3, r3
+    W(0x332C)                   # add     r2, r3            ; tile = tile_base + tile_off
+    W(0x2632)                   # mov.l   r3, @r6           ; top cell
+    W(0x7301)                   # add     #1, r3
+    MOVW_LIT(1, 0x0100)         # mov.w   .L_0100, r1
+    W(0x361C)                   # add     r1, r6
+    W(0x2632)                   # mov.l   r3, @r6           ; bottom cell
+    L('advance')
+    W(0x854C)                   # mov.w   @(0x18, r4), r0
+    W(0x301C)                   # add     r1, r0            ; cursor += 0x0100 (X += 1)
+    W(0x000B)                   # rts
+    W(0x814C)                   # [delay] mov.w r0, @(0x18, r4)
+
+    # Emit deduplicated 16-bit and 4-byte-aligned 32-bit literal pools right after rts
+    pool = bytearray()
+    w_addr = {}
+    for idx, op_pc, rn, val in lit_w:
+        if val not in w_addr:
+            w_addr[val] = pc + len(pool)
+            pool += struct.pack('>H', val)
+        disp = (w_addr[val] - (op_pc + 4)) // 2
+        assert 0 <= disp <= 0xFF
+        ops[idx] = ('w', 0x9000 | (rn << 8) | disp)
+    if (pc + len(pool)) & 3:
+        pool += b'\x00\x00'
+    l_addr = {}
+    for idx, op_pc, rn, val in lit_l:
+        if val not in l_addr:
+            l_addr[val] = pc + len(pool)
+            pool += struct.pack('>I', val)
+        disp = (l_addr[val] - ((op_pc + 4) & ~3)) // 4
+        assert 0 <= disp <= 0xFF
+        ops[idx] = ('w', 0xD000 | (rn << 8) | disp)
+
+    out = bytearray()
+    for item in ops:
+        if item[0] == 'w':
+            out += struct.pack('>H', item[1])
+        else:
+            _, op_base, bits, name, op_pc = item
+            d = (labels_pos[name] - (op_pc + 4)) // 2
+            lo, hi = -(1 << (bits - 1)), (1 << (bits - 1)) - 1
+            assert lo <= d <= hi, f'branch to {name} out of range: {d}'
+            out += struct.pack('>H', op_base | (d & ((1 << bits) - 1)))
+    out += pool
+    assert len(out) <= TEXT_PUT_END - TEXT_PUT
+    return bytes(out)
+
+
+def _encode_saturn_tut_page(lines):
+    """Encode one English tutorial page into Saturn 16-bit script words (0xFF02 newline, 0xFFFF end)."""
+    out = []
+    used = set()
+    for row, line in enumerate(l for l in lines if l != 'IFTURN'):
+        assert len(line) <= 18, f'tutorial line > 18 chars: {line!r}'
+        out += [0xFF02, text.TUT_FIRST + text.TUT_STEP * row]
+        codes = text.encode_line(line)
+        used.update(c for c in codes if c != 0x20)
+        out += codes
+    assert len(used) <= 64, f'tutorial page uses {len(used)} unique glyphs (max 64)'
+    out.append(0xFFFF)
+    return struct.pack(f'>{len(out)}H', *out)
+
+
+def _rebuild_tut_script(prog, orig_start, pages, dst_off):
+    """Rebuild one tutorial script sequence at `dst_off`, preserving all vanilla op0d/op05/op07/op0a opcodes."""
+    out = bytearray()
+    p = orig_start
+    page_idx = 0
+    while True:
+        op, arg = prog[p], prog[p + 1]
+        if op == 0x0D:
+            out += prog[p:p + 4]
+            p += 4
+        elif op == 0x03:
+            resume = struct.unpack_from('>I', prog, p + 2)[0]
+            en_bytes = _encode_saturn_tut_page(pages[page_idx])
+            page_idx += 1
+            new_resume = RAM_BASE + dst_off + len(out) + 6 + len(en_bytes)
+            out += bytes([op, arg]) + struct.pack('>I', new_resume) + en_bytes
+            p = resume - RAM_BASE
+        elif op == 0x0A:
+            out += prog[p:p + 2]
+            break
+        else:
+            out += prog[p:p + 2]
+            p += 2
+    assert page_idx == len(pages), f'expected {len(pages)} tutorial pages, rebuilt {page_idx}'
+    return bytes(out)
+
+
+def _apply_text(prog, gfile09):
+    """Milestone B: install SH-2 8x16 text_put, Spleen 8x16 font in GFILE09[7], and 12 tutorial pages."""
+    # 1. Replace text_put in-place (zero-pad remainder of 628 B slot with SH-2 nop 0x0009)
+    code = assemble_text_put()
+    pad_nops = b'\x00\x09' * ((TEXT_PUT_END - TEXT_PUT - len(code)) // 2)
+    prog[TEXT_PUT:TEXT_PUT_END] = code + pad_nops
+
+    # 2. Replace GFILE09[7] (raw[0]) 8,224 B 1bpp JP font with 2,048 B Spleen 8x16 ASCII (0x00..0x7F)
+    fbuf = bytearray(128 * 16)
+    for code_pt, rows in font.font().items():
+        if code_pt < 128:
+            fbuf[code_pt * 16:code_pt * 16 + 16] = rows
+    gfile09['raw'][0] = fbuf
+
+    # 3. Rebuild Tutorial Part 1 (9 pages) + Part 2 (3 pages) into dead MD profile area (0x00BD00..)
+    tut_pages = [lines for _, _, lines in script_en.TEXT[58:70]]
+    at = TUT_SCRIPT_AT
+    for (ref_off, orig_ram), chunk_pages in zip(TUT_PTR_REFS, (tut_pages[:9], tut_pages[9:])):
+        cur = struct.unpack_from('>I', prog, ref_off)[0]
+        if cur != orig_ram:
+            raise ValueError(f'tutorial pointer at {ref_off:#x}: expected {orig_ram:#x}, got {cur:#x}')
+        rebuilt = _rebuild_tut_script(prog, orig_ram - RAM_BASE, chunk_pages, at)
+        if at + len(rebuilt) > TUT_SCRIPT_END:
+            raise ValueError('English tutorial scripts overflow dead profile region')
+        prog[at:at + len(rebuilt)] = rebuilt
+        struct.pack_into('>I', prog, ref_off, RAM_BASE + at)
+        at += len(rebuilt)
+        if at & 1:
+            at += 1
 
 
 def _apply_strings(prog):
@@ -229,8 +483,9 @@ def build(src_bin, logo_mode=logo.DEFAULT_MODE):
         prog = bytearray(saturn_iso.read_iso_file(f, '0', entries))
         banks = {name: saturn_arch.unpack_bank(saturn_iso.read_iso_file(f, name, entries)) for name in TARGET_BANKS}
 
-    # 1. /0;1 in-place ASCII strings
+    # 1. /0;1 in-place ASCII strings + Milestone B SH-2 8x16 tutorial text engine & font
     _apply_strings(prog)
+    _apply_text(prog, banks['GFILE09.BIN'])
 
     # 2. VDP1 sprite chunks with /0;1 sprite tables
     _apply_logo(prog, banks['DEMO_G04.BIN']['chunks'][7], logo_mode)

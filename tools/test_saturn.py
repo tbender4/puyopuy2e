@@ -226,6 +226,180 @@ def test_lzss_arch_and_vdp1_units():
     print('PASS Bits Lab 10/6 LZSS + H_PUYODT/.BIN archive + per-sprite VDP1 unit tests')
 
 
+def _sim_sh2_text_put(code_bytes, base_pc, mem, r4_task, r5_code):
+    """Minimal exact SH-2 interpreter for the opcodes emitted by saturn_build.assemble_text_put."""
+    def u8(a): return mem.get(a, 0)
+    def s8(v): return v - 256 if v >= 128 else v
+    def s16(v): return v - 65536 if v >= 32768 else v
+    def r16(a):
+        assert a % 2 == 0, f'unaligned 16-bit read @ {a:#x}'
+        return (u8(a) << 8) | u8(a + 1)
+    def r32(a):
+        assert a % 4 == 0, f'unaligned 32-bit read @ {a:#x}'
+        return (r16(a) << 16) | r16(a + 2)
+    def w16(a, v):
+        assert a % 2 == 0, f'unaligned 16-bit write @ {a:#x}'
+        mem[a], mem[a + 1] = (v >> 8) & 0xFF, v & 0xFF
+    def w32(a, v):
+        assert a % 4 == 0, f'unaligned 32-bit write @ {a:#x}'
+        w16(a, (v >> 16) & 0xFFFF); w16(a + 2, v & 0xFFFF)
+
+    for i, b in enumerate(code_bytes):
+        mem[base_pc + i] = b
+    regs = [0xDEAD0000 + i for i in range(16)]
+    regs[4], regs[5] = r4_task, r5_code
+    sentinel_pr = 0x06011794
+    pr = sentinel_pr
+    saved_callee = regs[8:]
+    t_bit = 0
+    pc = base_pc
+
+    def step(cur_pc):
+        nonlocal t_bit
+        op = r16(cur_pc)
+        hi = (op >> 12) & 0xF
+        n = (op >> 8) & 0xF
+        m = (op >> 4) & 0xF
+        lo = op & 0xF
+        nxt = cur_pc + 2
+        delay_target = None
+        if op == 0x000B:  # rts
+            delay_target = pr
+        elif hi == 0xE:  # mov #imm, Rn
+            regs[n] = s8(op & 0xFF) & 0xFFFFFFFF
+        elif hi == 0x7:  # add #imm, Rn
+            regs[n] = (regs[n] + s8(op & 0xFF)) & 0xFFFFFFFF
+        elif hi == 0x9:  # mov.w @(disp, PC), Rn
+            regs[n] = s16(r16(cur_pc + 4 + (op & 0xFF) * 2)) & 0xFFFFFFFF
+        elif hi == 0xD:  # mov.l @(disp, PC), Rn
+            regs[n] = r32(((cur_pc + 4) & ~3) + (op & 0xFF) * 4)
+        elif hi == 0xA:  # bra disp
+            d = op & 0xFFF
+            if d >= 0x800: d -= 0x1000
+            delay_target = cur_pc + 4 + d * 2
+        elif (op & 0xFF00) == 0x8500:  # mov.w @(disp, Rm), R0
+            regs[0] = s16(r16((regs[m] + lo * 2) & 0xFFFFFFFF)) & 0xFFFFFFFF
+        elif (op & 0xFF00) == 0x8100:  # mov.w R0, @(disp, Rn)
+            w16((regs[m] + lo * 2) & 0xFFFFFFFF, regs[0])
+        elif (op & 0xFF00) == 0x8900:  # bt
+            if t_bit: nxt = cur_pc + 4 + s8(op & 0xFF) * 2
+        elif (op & 0xFF00) == 0x8B00:  # bf
+            if not t_bit: nxt = cur_pc + 4 + s8(op & 0xFF) * 2
+        elif (op & 0xFF00) == 0x8D00:  # bt/s
+            if t_bit: delay_target = cur_pc + 4 + s8(op & 0xFF) * 2
+        elif (op & 0xFF00) == 0x8F00:  # bf/s
+            if not t_bit: delay_target = cur_pc + 4 + s8(op & 0xFF) * 2
+        elif (op & 0xFF00) == 0xC900:  # and #imm, R0
+            regs[0] &= (op & 0xFF)
+        elif hi == 0x6 and lo == 0x0:  # mov.b @Rm, Rn
+            regs[n] = s8(u8(regs[m])) & 0xFFFFFFFF
+        elif hi == 0x6 and lo == 0x3:  # mov Rm, Rn
+            regs[n] = regs[m]
+        elif hi == 0x6 and lo == 0x4:  # mov.b @Rm+, Rn
+            regs[n] = s8(u8(regs[m])) & 0xFFFFFFFF
+            if n != m: regs[m] = (regs[m] + 1) & 0xFFFFFFFF
+        elif hi == 0x6 and lo == 0xC:  # extu.b Rm, Rn
+            regs[n] = regs[m] & 0xFF
+        elif hi == 0x6 and lo == 0xD:  # extu.w Rm, Rn
+            regs[n] = regs[m] & 0xFFFF
+        elif hi == 0x3 and lo == 0x0:  # cmp/eq Rm, Rn
+            t_bit = 1 if regs[n] == regs[m] else 0
+        elif hi == 0x3 and lo == 0x2:  # cmp/hs Rm, Rn
+            t_bit = 1 if (regs[n] & 0xFFFFFFFF) >= (regs[m] & 0xFFFFFFFF) else 0
+        elif hi == 0x3 and lo == 0xC:  # add Rm, Rn
+            regs[n] = (regs[n] + regs[m]) & 0xFFFFFFFF
+        elif hi == 0x2 and lo == 0x1:  # mov.w Rm, @Rn
+            w16(regs[n], regs[m])
+        elif hi == 0x2 and lo == 0x2:  # mov.l Rm, @Rn
+            w32(regs[n], regs[m])
+        elif hi == 0x2 and lo == 0x8:  # tst Rm, Rn
+            t_bit = 1 if (regs[n] & regs[m]) == 0 else 0
+        elif hi == 0x2 and lo == 0x9:  # and Rm, Rn
+            regs[n] &= regs[m]
+        elif hi == 0x0 and lo == 0x5:  # mov.w Rm, @(r0, Rn)
+            w16((regs[0] + regs[n]) & 0xFFFFFFFF, regs[m])
+        elif hi == 0x0 and lo == 0xD:  # mov.w @(r0, Rm), Rn
+            regs[n] = s16(r16((regs[0] + regs[m]) & 0xFFFFFFFF)) & 0xFFFFFFFF
+        elif hi == 0x0 and lo == 0xE:  # mov.l @(r0, Rm), Rn
+            regs[n] = r32((regs[0] + regs[m]) & 0xFFFFFFFF)
+        elif hi == 0x4 and (op & 0xFF) == 0x00:  # shll Rn
+            t_bit = (regs[n] >> 31) & 1; regs[n] = (regs[n] << 1) & 0xFFFFFFFF
+        elif hi == 0x4 and (op & 0xFF) == 0x08:  # shll2 Rn
+            regs[n] = (regs[n] << 2) & 0xFFFFFFFF
+        elif hi == 0x4 and (op & 0xFF) == 0x09:  # shlr2 Rn
+            regs[n] = (regs[n] >> 2) & 0xFFFFFFFF
+        elif hi == 0x4 and (op & 0xFF) == 0x19:  # shlr8 Rn
+            regs[n] = (regs[n] >> 8) & 0xFFFFFFFF
+        elif hi == 0x4 and (op & 0xFF) == 0x10:  # dt Rn
+            regs[n] = (regs[n] - 1) & 0xFFFFFFFF; t_bit = 1 if regs[n] == 0 else 0
+        else:
+            raise AssertionError(f'unexpected SH-2 opcode {op:#06x} @ {cur_pc:#x}')
+        return nxt, delay_target
+
+    for _ in range(2000):
+        nxt, dtgt = step(pc)
+        if dtgt is not None:
+            step(pc + 2)  # execute delay slot
+            pc = dtgt
+            if pc == sentinel_pr:
+                assert regs[8:] == saved_callee and pr == sentinel_pr
+                return
+        else:
+            pc = nxt
+    raise AssertionError('SH-2 simulation did not return')
+
+
+def test_sh2_text_put_sim():
+    code = saturn_build.assemble_text_put()
+    assert len(code) <= saturn_build.TEXT_PUT_END - saturn_build.TEXT_PUT
+    mem = {}
+    # Populate LUT at 0x0607726C (1bpp nibble -> 4bpp 0xF/0x0 u16)
+    for nib in range(16):
+        w = sum((0xF << (4 * (3 - b))) for b in range(4) if (nib >> (3 - b)) & 1)
+        mem[0x0607726C + nib * 2], mem[0x0607726C + nib * 2 + 1] = w >> 8, w & 0xFF
+    # Populate mock font at 0x00293000 with distinct patterns for 'A' (0x41) and 'B' (0x42)
+    font_base = 0x00293000
+    glyph_a = bytes([0x81, 0x42, 0x24, 0x18] * 4)
+    glyph_b = bytes([0xFF, 0x00] * 8)
+    for i, b in enumerate(glyph_a): mem[font_base + 0x41 * 16 + i] = b
+    for i, b in enumerate(glyph_b): mem[font_base + 0x42 * 16 + i] = b
+    # Init mock task struct at 0x06090000: cursor=(X=21,Y=6)=0x1506, count=0, font_base, tile_base=0x8780
+    task = 0x06090000
+    for off, fmt, val in ((0x18, '>H', 0x1506), (0x50, '>H', 0), (0x64, '>I', font_base), (0x6A, '>H', 0x8780)):
+        for i, b in enumerate(struct.pack(fmt, val)): mem[task + off + i] = b
+
+    def rd32(a): return struct.unpack('>I', bytes(mem.get(a + i, 0) for i in range(4)))[0]
+    def rd16(a): return (mem.get(a, 0) << 8) | mem.get(a + 1, 0)
+    nt = lambda x, y: 0x25E10000 + (((y << 6) + x) << 2)
+
+    # 1. Draw 'A' at (21, 6): cache miss -> tiles 0x8780/0x8781, count -> 2, cursor -> (22, 6)
+    _sim_sh2_text_put(code, saturn_build.RAM_BASE + saturn_build.TEXT_PUT, mem, task, ord('A'))
+    assert rd16(task + 0x50) == 2 and rd16(task + 0x18) == 0x1606 and rd16(0x0608D774) == ord('A')
+    assert rd32(nt(21, 6)) == 0x8780 and rd32(nt(21, 7)) == 0x8781
+    assert rd32(0x25E0F000) == 0xF000000F and rd32(0x25E0F004) == 0x0F0000F0  # top tile rows 0..1
+    assert rd32(0x25E0F03C) == 0x000FF000  # bottom tile row 15 (0x18)
+
+    # 2. Draw spaces (0x20 and 0x0000) at (22, 6) and (23, 6): write 0x057D, count stays 2
+    _sim_sh2_text_put(code, saturn_build.RAM_BASE + saturn_build.TEXT_PUT, mem, task, 0x20)
+    assert rd16(task + 0x50) == 2 and rd16(task + 0x18) == 0x1706
+    assert rd32(nt(22, 6)) == 0x057D and rd32(nt(22, 7)) == 0x057D
+    _sim_sh2_text_put(code, saturn_build.RAM_BASE + saturn_build.TEXT_PUT, mem, task, 0x0000)
+    assert rd16(task + 0x50) == 2 and rd16(task + 0x18) == 0x1806
+    assert rd32(nt(23, 6)) == 0x057D and rd32(nt(23, 7)) == 0x057D
+
+    # 3. Draw 'A' again at (24, 6): cache hit -> reuses 0x8780/0x8781, count stays 2
+    _sim_sh2_text_put(code, saturn_build.RAM_BASE + saturn_build.TEXT_PUT, mem, task, ord('A'))
+    assert rd16(task + 0x50) == 2 and rd16(task + 0x18) == 0x1906
+    assert rd32(nt(24, 6)) == 0x8780 and rd32(nt(24, 7)) == 0x8781
+
+    # 4. Draw 'B' at (25, 6): cache miss -> tiles 0x8782/0x8783 at 0x25E0F040, count -> 4
+    _sim_sh2_text_put(code, saturn_build.RAM_BASE + saturn_build.TEXT_PUT, mem, task, ord('B'))
+    assert rd16(task + 0x50) == 4 and rd16(task + 0x18) == 0x1A06 and rd16(0x0608D776) == ord('B')
+    assert rd32(nt(25, 6)) == 0x8782 and rd32(nt(25, 7)) == 0x8783
+    assert rd32(0x25E0F040) == 0xFFFFFFFF and rd32(0x25E0F07C) == 0x00000000  # top row 0 & bottom row 15
+    print(f'PASS SH-2 text_put behavioral simulation ({len(code)} B, miss/space/0/hit/2nd-glyph verified)')
+
+
 def test_real_disc():
     if not os.path.isfile(SATURN_BIN):
         print('SKIP real Saturn disc tests (Track 1 .bin not found)')
@@ -319,11 +493,35 @@ def test_real_disc():
             for g in logo.RED_X:
                 at = groups0[g][0]
                 assert struct.unpack_from('>hB', repl['0'], at + 2) == (logo.RED_Y, (2 << 2) | 1)
-    print('PASS Milestone A Saturn build (3/3 logo modes, invariants, blank tiles, RAM + ISO caps)')
+        # Verify Milestone B: 2,048 B Spleen font in GFILE09[7] (4-byte aligned) + 12 English tutorial pages
+        assert len(unpacked['GFILE09.BIN']['raw'][0]) == 2048
+        assert struct.unpack_from('>H', repl['GFILE09.BIN'], 7 * 2)[0] % 4 == 0
+        p1_ram = struct.unpack_from('>I', repl['0'], 0x043834)[0]
+        p2_ram = struct.unpack_from('>I', repl['0'], 0x043E74)[0]
+        assert saturn_build.RAM_BASE + saturn_build.TUT_SCRIPT_AT == p1_ram < p2_ram
+        # Walk both rebuilt scripts to verify every op03 resume pointer matches 0xFFFF end
+        total_pages = 0
+        for start_ram in (p1_ram, p2_ram):
+            p = start_ram - saturn_build.RAM_BASE
+            while True:
+                op = repl['0'][p]
+                if op == 0x0D: p += 4
+                elif op == 0x03:
+                    res = struct.unpack_from('>I', repl['0'], p + 2)[0] - saturn_build.RAM_BASE
+                    words = struct.unpack(f'>{(res - (p + 6)) // 2}H', repl['0'][p + 6:res])
+                    assert words[-1] == 0xFFFF
+                    row_offs = [words[i + 1] for i in range(len(words) - 1) if words[i] == 0xFF02]
+                    assert row_offs == [0x01A4 + 0x0180 * r for r in range(len(row_offs))]
+                    total_pages += 1; p = res
+                elif op == 0x0A: break
+                else: p += 2
+        assert total_pages == 12
+    print('PASS Milestone A+B Saturn build (3/3 logo modes, SH-2 text/font/12 tut pages, blank tiles, caps)')
 
 
 if __name__ == '__main__':
     test_mode1_and_iso_patcher()
     test_lzss_arch_and_vdp1_units()
+    test_sh2_text_put_sim()
     test_real_disc()
-    print('All Saturn building-block tests passed (stdlib-only).')
+    print('All Saturn tests passed (stdlib-only).')
