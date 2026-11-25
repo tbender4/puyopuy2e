@@ -1,6 +1,7 @@
 """Builds the English Mega Drive ROM from Puyo Puyo 2 (Japan) (v1.1).md.
 
-Reuses Zanac's arcade helpers and assets directly with zero edits to the arcade modules.
+Reuses Zanac's arcade helpers and assets directly, with arcade stream addresses mapped to MD
+ones (MD_STREAMS).
 Only the Spleen 8x16 font goes in bank 0x090000 (required by the 16-bit table entry at
 0x09000e); hooks, English script pages, level sprite lists, and Rule Edit strings live in
 the empty 448 KB region starting at 0x110000."""
@@ -11,7 +12,8 @@ ROOT = os.path.join(HERE, '..')
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(ROOT, 'text'))
 sys.path.insert(0, os.path.join(ROOT, 'font'))
-import font, gfx, labels, levels, logo, md_screens, png, script_en, text, title_font, titles
+import font, gfx, labels, levels, logo, md_screens, png, script_en, text, titles
+from build import jmp, patch_file
 
 # Bank 0x090000 (font offset must be a 16-bit offset in bank 0x090000; free 0xff from 0x993bf)
 FONT_BANK_ENTRY = 0x09000e
@@ -41,37 +43,35 @@ MD_PAGES = (
     0x0191a8, 0x0191dc, 0x019222, 0x01926c, 0x0192dc, 0x01933e,
 )
 
-# Shared MD stream / sprite table addresses
+# MD addresses used directly (LOGO_TABLES/LOGO_TILES also read by test_build_md)
 LOGO_TABLES = (0x02836a, 0x0285a6)
 LOGO_TILES = 0x0b751d
-TUT_TILES = 0x092640
-TUT_MAP = 0x044ec8
-ALLCLEAR_MAP = 0x045503
-CHAIN_TILES = 0x083f37
-KO_BIG_TILES = 0x086a7f
-KO_SMALL_TILES = 0x085dcd
 YAY_TILES = 0x086fa1
 YAY_LIST = 0x01a2b8
 LEVEL_TILES = 0x0863d1
 LEVEL_TABLE = 0x01a6e2
-TOWER_TILES = 0x0c62d1
-CONT_MAP = 0x0cc655
-CONT_TILES = 0x0cca17
-AIDS_MAP = 0x03eaff
-AIDS_TILES = 0x03ee26
+
+# Arcade stream address -> MD address, so the arcade titles/labels/logo code runs unchanged
+MD_STREAMS = {
+    logo.TILES: LOGO_TILES,
+    0x091545: 0x092640,     # tutorial tiles
+    0x083f2b: 0x083f37,     # CHAIN + OFFSET
+    0x0869e7: 0x086a7f,     # K.O. big
+    0x085dc1: 0x085dcd,     # K.O. small
+}
 
 
-def _patch_file(name):
-    return open(os.path.join(ROOT, 'patch', name), 'rb').read()
+class _MDStreams(gfx.Streams):
+    def get(self, addr):
+        return super().get(MD_STREAMS.get(addr, addr))
+
+    def original(self, addr):
+        return super().original(MD_STREAMS.get(addr, addr))
 
 
 def _relocate(blob, old, new, count):
     assert blob.count(old) == count, 'expected %d hits, got %d' % (count, blob.count(old))
     return blob.replace(old, new)
-
-
-def _jmp(prog, at, to, length):
-    prog[at:at + length] = struct.pack('>HI', 0x4ef9, to) + b'\x4e\x71' * ((length - 6) // 2)
 
 
 def _apply_text(prog, at, end):
@@ -92,148 +92,8 @@ def _apply_text(prog, at, end):
     return at
 
 
-def _apply_titles(streams):
-    # Keep all 8 slots of titles.TITLES: MD skips slot 6 (JOINING IN) and reads slot 7 (QUICK TURN) at 0xffcb28.
-    tiles, tmap = streams.get(TUT_TILES), streams.get(TUT_MAP)
-    letters = sorted(set(''.join(titles.TITLES)) - {' '})
-    assert titles.FIRST_TILE + 2 * len(letters) <= titles.LAST_TILE + 1
-    slot = {}
-    for k, ch in enumerate(letters):
-        g = title_font.glyph(ch)
-        top, bot = titles.FIRST_TILE + 2 * k, titles.FIRST_TILE + 2 * k + 1
-        gfx.tile_put(tiles, top, [[titles.COLOUR * v for v in r] for r in g[:8]])
-        gfx.tile_put(tiles, bot, [[titles.COLOUR * v for v in r] for r in g[8:]])
-        slot[ch] = (top, bot)
-    blank = [[0] * 8 for _ in range(8)]
-    for t in range(titles.FIRST_TILE + 2 * len(letters), titles.LAST_TILE + 1):
-        gfx.tile_put(tiles, t, blank)
-    for k, title in enumerate(titles.TITLES):
-        s = title.center(titles.WIDTH)
-        for row in range(2):
-            for col, ch in enumerate(s):
-                v = titles.BLANK if ch == ' ' else slot[ch][row]
-                i = titles.MAP_AT + 2 * ((2 * k + row) * titles.WIDTH + col)
-                tmap[i:i + 2] = v.to_bytes(2, 'big')
-
-
-def _apply_logo(prog, streams, mode):
-    if mode not in logo.MODES:
-        raise ValueError('unknown logo mode: %r' % (mode,))
-    if mode == 'original':
-        return
-    img = png.read(os.path.join(ROOT, 'assets', 'gfx', 'logo_puyo.png'))
-    group_imgs = logo._split_groups(img)
-    tiles = streams.get(LOGO_TILES)
-    blank = [[0] * 8 for _ in range(8)]
-    for t in range(logo.FIRST_RED):
-        gfx.tile_put(tiles, t, blank)
-    next_tile, starts = 0, []
-    for g_img, grp in zip(group_imgs, logo.GROUP_LAYOUT):
-        grp_starts = []
-        for (_, _, w, h, sx, sy) in grp:
-            grp_starts.append(next_tile)
-            for c in range(w):
-                for r in range(h):
-                    x0, y0 = sx + 8 * c, sy + 8 * r
-                    cell = [(row[x0:x0 + 8] + [0] * 8)[:8] for row in g_img[y0:y0 + 8]]
-                    gfx.tile_put(tiles, next_tile, cell)
-                    next_tile += 1
-        starts.append(grp_starts)
-    assert next_tile <= logo.FIRST_RED
-    if mode == 'with-red-puyos':
-        logo._repack_red_puyos(tiles, streams.original(LOGO_TILES))
-    for table in LOGO_TABLES:
-        for g, (at, n) in enumerate(logo.read_groups(prog, table)):
-            if g < 2:
-                spec = logo.GROUP_LAYOUT[g]
-                assert len(spec) <= n
-                e0 = at + 2
-                low = prog[e0 + 3]
-                attr0 = prog[e0 + 4] << 8 | prog[e0 + 5]
-                prog[at:at + 2] = struct.pack('>H', len(spec))
-                for k, (xr, yr, w, h, _, _) in enumerate(spec):
-                    e = at + 2 + 8 * k
-                    prog[e:e + 8] = struct.pack('>hBBHh', yr, (w - 1) << 2 | (h - 1), low,
-                                                (attr0 & 0xf800) | (logo.FIRST + starts[g][k]), xr)
-            elif g in logo.RED_X:
-                if mode == 'no-red-puyos':
-                    for k in range(n):
-                        prog[at + 2 + 8 * k:at + 4 + 8 * k] = struct.pack('>h', logo.OFFSCREEN_Y)
-                else:
-                    assert n == 1
-                    e = at + 2
-                    attr = prog[e + 4] << 8 | prog[e + 5]
-                    prog[e:e + 8] = struct.pack('>hBBHh', logo.RED_Y, (2 << 2) | 1, prog[e + 3], attr, logo.RED_X[g])
-
-
-def _apply_shared_labels(prog, streams):
-    # Tutorial ALL CLEAR
-    img = [[0] * 96 for _ in range(8)] + labels.render(labels.ALL_CLEAR, 96, 16, 0xa, 0x1)
-    for x in range(96):
-        for y in range(23, -1, -1):
-            if img[y][x] == 0xa:
-                img[y][x] = 0x9
-                break
-    gfx.replace_block(streams.get(TUT_TILES), streams.get(ALLCLEAR_MAP), 0x270, 12, 3, img,
-                      row_stride=14, blank=0x1c)
-
-    # Play CHAIN (0x78..0x7a) + OFFSET (0x70..0x77)
-    ctiles = streams.get(CHAIN_TILES)
-    cimg = [[0] * 24 for _ in range(8)]
-    for k, ch in enumerate("CHAIN"):
-        for y, row in enumerate(labels.TINY[ch]):
-            for x, c in enumerate(row):
-                if c == '#':
-                    xx, yy = 1 + 4 * k + x, 1 + y
-                    cimg[yy][xx] = 6
-                    for dy, dx in ((1, 0), (0, 1), (1, 1)):
-                        if cimg[yy + dy][xx + dx] == 0:
-                            cimg[yy + dy][xx + dx] = 2
-    labels.put_tiles(ctiles, cimg, [[0x78, 0x79, 0x7a]])
-
-    order = labels.sprite_order(0x70, 4, 2, 1)
-    oimg = [[0] * 32 for _ in range(16)]
-    for ty, row in enumerate(order):
-        for tx, t in enumerate(row):
-            for y, line in enumerate(gfx.tile_get(ctiles, t)):
-                oimg[ty * 8 + y][tx * 8:tx * 8 + 8] = line
-    for y in range(3, 15):
-        oimg[y] = [0xf] * 32
-    x = (32 - (5 * len(labels.OFFSET) - 1)) // 2
-    for ch in labels.OFFSET:
-        for y, line in enumerate(labels.SMALL[ch]):
-            for dx, c in enumerate(line):
-                if c == '#':
-                    oimg[5 + y][x + dx] = 0x1
-        x += 5
-    labels.put_tiles(ctiles, oimg, order)
-
-    # Play K.O. (big + small)
-    ktiles = streams.get(KO_BIG_TILES)
-    m = labels.scaled_mask(labels.KO, 21, 39, 3)
-    kimg = [[0] * 96 for _ in range(56)]
-    x0 = 16 + (72 - len(m[0])) // 2
-    for y, row in enumerate(m):
-        for x, v in enumerate(row):
-            if v:
-                kimg[6 + y][x0 + x] = 1
-    kimg = labels.ring(labels.ring(kimg, 5, {1}), 6, {1, 5})
-    for first, cols, rows, sx, sy in labels.KO_SPRITES:
-        for c in range(cols):
-            for r in range(rows):
-                gfx.tile_put(ktiles, first + c * rows + r,
-                             [row[sx + 8 * c:sx + 8 * c + 8] for row in kimg[sy + 8 * r:sy + 8 * r + 8]])
-    stiles = streams.get(KO_SMALL_TILES)
-    simg = [[1] * 24 for _ in range(48)]
-    for k, line in enumerate(("K.", "O.")):
-        sm = labels.scaled_mask(line, 14, 19, 2)
-        for y, row in enumerate(sm):
-            for x, v in enumerate(row):
-                if v:
-                    simg[4 + 22 * k + y][(24 - len(row)) // 2 + x] = 6
-    labels.put_tiles(stiles, simg, [[3 * r + c for c in range(3)] for r in range(6)])
-
-    # Play YAY!
+def _apply_yay(prog, streams):
+    # labels.apply_yay writes the arcade list address; MD's list is at YAY_LIST
     yimg = png.read(os.path.join(labels.ASSETS, 'yay.png'))
     ytiles = streams.get(YAY_TILES)
     sprites = [(-32, 0x0f08, 16 * k, -48 + 32 * k, 4, 4) for k in range(3)] + \
@@ -248,12 +108,6 @@ def _apply_shared_labels(prog, streams):
     prog[YAY_LIST:YAY_LIST + len(data)] = data
     for t in range(60, 69):
         gfx.tile_put(ytiles, t, [[0] * 8 for _ in range(8)])
-
-    # Tower, Nomi, Continue, and Act Against AIDS (exact same addresses as arcade)
-    labels.apply_tower(streams)
-    labels.apply_here(streams)
-    labels.apply_gameover(streams)
-    labels.apply_aids(streams)
 
 
 def _apply_levels(prog, streams, at, end):
@@ -270,9 +124,7 @@ def _apply_levels(prog, streams, at, end):
     assert len(pieces) <= 10
     tiles = streams.get(LEVEL_TILES)
     for part, k in pieces.items():
-        img = levels.piece_pixels(part)
-        for half in (0, 1):
-            gfx.tile_put(tiles, 2 * k + half, [row[8 * half:8 * half + 8] for row in img])
+        labels.put_tiles(tiles, levels.piece_pixels(part), [[2 * k, 2 * k + 1]])
     for t in range(2 * len(pieces), 20):
         gfx.tile_put(tiles, t, [[0] * 8 for _ in range(8)])
     for level, sprites in enumerate(lists):
@@ -295,7 +147,7 @@ def update_md_checksum(prog):
 def build(prog, logo_mode=logo.DEFAULT_MODE):
     prog = bytearray(prog)
     # 1. Text engine (8x16 glyphs): relocate VDP write helper 0x1056 -> 0x111a
-    eng = _relocate(_patch_file('text8.bin'), b'\x4e\xb8\x10\x56', b'\x4e\xb8\x11\x1a', 3)
+    eng = _relocate(patch_file('text8.bin'), b'\x4e\xb8\x10\x56', b'\x4e\xb8\x11\x1a', 3)
     assert len(eng) <= TEXT_PUT_END - TEXT_PUT
     prog[TEXT_PUT:TEXT_PUT + len(eng)] = eng
 
@@ -306,21 +158,30 @@ def build(prog, logo_mode=logo.DEFAULT_MODE):
         prog[FONT + code * 16:FONT + code * 16 + 16] = rows
 
     # 3. Script page opener hooks + 70 English pages in empty bank 0x110000
-    hooks = _relocate(_patch_file('hooks.bin'), b'\x4e\xf9\x00\x01\x74\x00', b'\x4e\xf9\x00\x01\x50\xac', 2)
+    hooks = _relocate(patch_file('hooks.bin'), b'\x4e\xf9\x00\x01\x74\x00', b'\x4e\xf9\x00\x01\x50\xac', 2)
     prog[HOOKS:HOOKS + len(hooks)] = hooks
-    _jmp(prog, OP03_PATCH[0], HOOKS, OP03_PATCH[1])
-    _jmp(prog, OP0B_PATCH[0], HOOKS + 0x10, OP0B_PATCH[1])
+    jmp(prog, OP03_PATCH[0], HOOKS, OP03_PATCH[1])
+    jmp(prog, OP0B_PATCH[0], HOOKS + 0x10, OP0B_PATCH[1])
 
     at = _apply_text(prog, DATA_AT, DATA_END)
     print('English text: %d bytes' % (at - DATA_AT))
 
     # 4. Shared arcade graphics + Mega Drive-exclusive screens
-    streams = gfx.Streams(prog)
-    _apply_titles(streams)
-    _apply_logo(prog, streams, logo_mode)
-    if logo_mode != 'original':
+    streams = _MDStreams(prog)
+    # Keep all 8 slots of titles.TITLES: MD skips slot 6 (JOINING IN) and reads slot 7 (QUICK TURN) at 0xffcb28.
+    titles.apply(streams)
+    logo.apply(prog, streams, logo_mode, LOGO_TABLES)
+    if logo_mode != 'original':  # streams.get() alone would recompress the stream
         logo.apply_wallpaper(streams.get(logo.WALLPAPER_TILES), 258, logo_mode)
-    _apply_shared_labels(prog, streams)
+    labels.apply_allclear(streams)
+    labels.apply_chain(streams)
+    labels.apply_knockout(streams)
+    _apply_yay(prog, streams)
+    # Tower, Nomi, Continue, and Act Against AIDS (exact same addresses as arcade)
+    labels.apply_tower(streams)
+    labels.apply_here(streams)
+    labels.apply_gameover(streams)
+    labels.apply_aids(streams)
     at = _apply_levels(prog, streams, at, DATA_END)
     at = md_screens.apply(prog, streams, at, DATA_END)
     print('MD extra data total: %d bytes (ends at 0x%06x)' % (at - DATA_AT, at))

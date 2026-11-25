@@ -12,7 +12,7 @@ puyo frames. Their tiles are stream TILES (VRAM tile 0x4e0 on); G0+G1 occupy 0x0
 
 In the English modes, G0+G1 use 66 of the 69 tiles and peak at 296/320 sprite pixels per
 scanline (11/20 sprites, SOVR=0 on Sega 315-5313 VDP hardware)."""
-import collections, os, struct
+import collections, functools, os, struct
 import gfx, png
 
 MODES = ('original', 'no-red-puyos', 'with-red-puyos')
@@ -95,7 +95,7 @@ def _repack_red_puyos(tiles, orig_tiles):
                 gfx.tile_put(tiles, base + c * 2 + r, cell)
 
 
-def apply(prog, streams, mode=DEFAULT_MODE):
+def apply(prog, streams, mode=DEFAULT_MODE, tables=TABLES):
     if mode not in MODES:
         raise ValueError('unknown logo mode: %r' % (mode,))
     if mode == 'original':
@@ -133,7 +133,7 @@ def apply(prog, streams, mode=DEFAULT_MODE):
     if mode == 'with-red-puyos':
         _repack_red_puyos(tiles, streams.original(TILES))
 
-    for table in TABLES:
+    for table in tables:
         groups = read_groups(prog, table)
         for g, (at, n) in enumerate(groups):
             if g < 2:
@@ -165,14 +165,11 @@ def apply(prog, streams, mode=DEFAULT_MODE):
 # Stream 0x0c497d holds the 81 wallpaper tiles (2..82) contiguously at tiles 260..340 (base=258).
 WALLPAPER_TILES = 0x0c497d
 _PUYO_LUMA = {2: 30, 3: 40, 4: 49, 5: 59, 6: 69, 8: 77, 10: 119, 11: 142, 12: 169, 13: 208, 15: 231}
-_WP_PUYO_CACHE = None
 
 
+@functools.lru_cache(maxsize=None)
 def _wallpaper_puyo_sprite():
     """Downscale assets/gfx/logo_puyo.png into a 55x24 glossy blue 'Puyo' sprite (indices 8..13)."""
-    global _WP_PUYO_CACHE
-    if _WP_PUYO_CACHE is not None:
-        return _WP_PUYO_CACHE
     src = png.read(os.path.join(HERE, '..', 'assets', 'gfx', 'logo_puyo.png'))
     crop = [row[0:94] for row in src[8:61]]
     src_w, src_h, tw, th = 94, 53, 53, 22
@@ -229,7 +226,6 @@ def _wallpaper_puyo_sprite():
                 for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1))
             ):
                 final[y][x] = 8
-    _WP_PUYO_CACHE = final
     return final
 
 

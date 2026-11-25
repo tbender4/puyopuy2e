@@ -15,10 +15,6 @@ def _crc32(data):
     return zlib.crc32(data) & 0xffffffff
 
 
-def _sha256(data):
-    return hashlib.sha256(data).hexdigest()
-
-
 def _arcade_readme(mode, even_crc, odd_crc):
     (ev_name, ev_crc), (od_name, od_crc) = romset.PROGRAM
     snd_name, snd_crc = romset.SOUND
@@ -108,7 +104,7 @@ def build_md_ips(src_md, out_dir, modes):
 
 def write_checksums(out_dir, paths):
     """Write SHA256SUMS.txt covering all generated patch artifacts."""
-    lines = [f'{_sha256(Path(path).read_bytes())}  {os.path.basename(path)}\n' for path in paths]
+    lines = [f'{hashlib.sha256(Path(path).read_bytes()).hexdigest()}  {os.path.basename(path)}\n' for path in paths]
     spath = os.path.join(out_dir, 'SHA256SUMS.txt')
     Path(spath).write_text(''.join(lines), encoding='utf-8', newline='\n')
     return spath
@@ -156,7 +152,7 @@ def main():
         Path(dst).write_bytes(raw)
         artifacts.append(dst)
 
-    sums = write_checksums(args.out, artifacts)
+    write_checksums(args.out, artifacts)
     print(f'wrote {len(artifacts) + 1} files to {args.out}')
 
 

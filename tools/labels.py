@@ -150,7 +150,7 @@ TINY = {        # 3x5 capitals for Nomi's tiny "I'm here" icon and CHAIN
     'I': ["###", ".#.", ".#.", ".#.", "###"],
     'N': ["##.", "#.#", "#.#", "#.#", "#.#"],
     'M': ["#.#", "###", "###", "#.#", "#.#"],
-    "'": [".#.", ".#.", "...", "...", "..."],
+    "'": ["#", "#", ".", ".", "."],
 }
 
 
@@ -212,8 +212,6 @@ def _draw_tiny(img, text, y0, colour, outline=None):
     for ch in text:
         if ch == ' ':
             glyphs.append(None)
-        elif ch == "'":
-            glyphs.append([[1 if r[1] == '#' else 0] for r in TINY[ch]])
         else:
             glyphs.append([[1 if c == '#' else 0 for c in r] for r in TINY[ch]])
     tw = sum(2 if g is None else len(g[0]) for g in glyphs) + max(0, len(glyphs) - 1)
@@ -242,57 +240,29 @@ def _draw_tiny(img, text, y0, colour, outline=None):
                 img[y][xx] = colour
 
 
-def _render_with_apos(text, width, height, fill, outline, shine=None):
-    """Like render(), adding a 2x4 apostrophe matching title_font's 13px height."""
-    apos = [[1, 1], [1, 1], [1, 0], [1, 0]] + [[0, 0]] * 9
-    masks = [apos if ch == "'" else letter_mask(ch) for ch in text]
-    w = sum(len(m[0]) for m in masks) + len(masks) - 1
-    img = [[0] * width for _ in range(height)]
-    x, y0 = (width - w) // 2, (height - 13) // 2
-    for m in masks:
-        for y, row in enumerate(m):
-            for dx, v in enumerate(row):
-                if v:
-                    img[y0 + y][x + dx] = fill
-        x += len(m[0]) + 1
-    out = [r[:] for r in img]
-    for y in range(height):
-        for xx in range(width):
-            if img[y][xx] == fill:
-                for dy in (-1, 0, 1):
-                    for dx in (-1, 0, 1):
-                        yy, nx = y + dy, xx + dx
-                        if 0 <= yy < height and 0 <= nx < width and img[yy][nx] != fill:
-                            out[yy][nx] = outline
-    if shine is not None:
-        for xx in range(width):
-            for y in range(height):
-                if img[y][xx] == fill:
-                    out[y][xx] = shine
-                    break
-    return out
-
-
-def apply_here(streams):
-    # Nomi the Flea ("ここにいる" = "I'M HERE" pointing at the 1px white flea dot):
-    # 1. Tower 24x24 portrait (0x0c8503 tiles 0x1b..0x23): preserve frame (f), border (1),
-    #    red arrow (8, top cap at y=17 x=11..12, shaft at y=18 x=10..12), and flea dot (f).
-    htiles = streams.get(0xc8503)
-    horder = sprite_order(0x1b, 3, 3, 1)
-    himg = [[0] * 24 for _ in range(24)]
-    for ty, row in enumerate(horder):
+def here_icon(tiles, order, fill, colour):
+    """24x24 Nomi portrait (3x3 tiles in order): keep frame (f), border (1), red arrow (8, top cap
+    at y=17 x=11..12, shaft at y=18 x=10..12) and flea dot (f); fill the rest, write I'M / HERE."""
+    img = [[0] * 24 for _ in range(24)]
+    for ty, row in enumerate(order):
         for tx, t in enumerate(row):
-            cell = gfx.tile_get(htiles, t)
+            cell = gfx.tile_get(tiles, t)
             for y in range(8):
-                himg[ty * 8 + y][tx * 8:tx * 8 + 8] = cell[y]
+                img[ty * 8 + y][tx * 8:tx * 8 + 8] = cell[y]
     for y in range(2, 19):
         for x in range(2, 22):
             if (y == 17 and x in (11, 12)) or (y == 18 and x in (10, 11, 12)):
                 continue
-            himg[y][x] = 3
-    _draw_tiny(himg, "I'M", 3, 0xa, outline=1)
-    _draw_tiny(himg, "HERE", 10, 0xa, outline=1)
-    put_tiles(htiles, himg, horder)
+            img[y][x] = fill
+    _draw_tiny(img, "I'M", 3, colour, outline=1)
+    _draw_tiny(img, "HERE", 10, colour, outline=1)
+    put_tiles(tiles, img, order)
+
+
+def apply_here(streams):
+    # Nomi the Flea ("ここにいる" = "I'M HERE" pointing at the 1px white flea dot):
+    # 1. Tower 24x24 portrait (0x0c8503 tiles 0x1b..0x23)
+    here_icon(streams.get(0xc8503), sprite_order(0x1b, 3, 3, 1), 3, 0xa)
 
     # 2. Blown-up profile/battle sprites (0x0ebd39): s06 "I'M / HERE!", s07 "YAY!", s08 "K.O."
     btiles = streams.get(0xebd39)
@@ -300,7 +270,7 @@ def apply_here(streams):
         put_tiles(btiles, [r[:32] for r in img], sprite_order(t_left, 4, rows, 1))
         put_tiles(btiles, [r[32:48] for r in img], sprite_order(t_right, 2, rows, 1))
 
-    im6 = _render_with_apos("I'M", 48, 16, 0xa, 1, shine=0xf) + render("HERE!", 48, 16, 0xa, 1, shine=0xf)
+    im6 = render("I'M", 48, 16, 0xa, 1, shine=0xf) + render("HERE!", 48, 16, 0xa, 1, shine=0xf)
     for x in range(48):
         for y in (15, 31):
             for yy in range(y, y - 16, -1):

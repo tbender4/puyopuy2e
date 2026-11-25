@@ -3,20 +3,13 @@
 Milestone C: translates all 23 H_PUYODT.BIN VDP2 menus/dialogs, dynamic Rule Editor hardness
 labels (H_PUYODT[0]), save-slot labels (H_PUYODT[77]/[79]), and Character Select START! banner
 (DEMO_G02[12..13]) with zero /0;1 edits and strict VDP2 VRAM tile-count preservation."""
-import struct
+import functools, struct
 import font, gfx, labels
 
-_GLYPHS = None
+_glyphs = functools.lru_cache(maxsize=None)(font.font)
 
 
-def _glyphs():
-    global _GLYPHS
-    if _GLYPHS is None:
-        _GLYPHS = font.font()
-    return _GLYPHS
-
-
-def _render_line_img(text, width_cells, fg=15, outline=None):
+def _render_line_img(text, width_cells, outline=None):
     """Render ASCII text in Spleen 8x16 onto a (width_cells*8) x 16 4bpp canvas."""
     glyphs = _glyphs()
     px_w = width_cells * 8
@@ -37,9 +30,9 @@ def _render_line_img(text, width_cells, fg=15, outline=None):
         for y, bits in enumerate(glyphs[ord(ch)]):
             for x in range(8):
                 if (bits >> (7 - x)) & 1:
-                    img[y][x0 + x] = fg
+                    img[y][x0 + x] = 15
     if outline is not None:
-        img = labels.ring(img, outline, {fg})
+        img = labels.ring(img, outline, {15})
     return img
 
 
@@ -49,7 +42,7 @@ def _tile_bytes(block):
     return bytes(out)
 
 
-def patch_vdp2_screen(tiles, tmap, map_w, map_h, erase_rects, lines, *, fg=15, outline=None):
+def patch_vdp2_screen(tiles, tmap, map_w, map_h, erase_rects, lines, *, outline=None):
     """Replace Japanese text rects in an H_PUYODT VDP2 tilemap/tile pair with Spleen 8x16 English.
 
     Preserves all tiles referenced outside `erase_rects` at their exact original tile IDs and
@@ -90,7 +83,7 @@ def patch_vdp2_screen(tiles, tmap, map_w, map_h, erase_rects, lines, *, fg=15, o
             (col + len(txt), row) not in occ and (col + len(txt), row + 1) not in occ
         ) else 0
         w_cells = len(txt) + pad
-        img = _render_line_img(txt, w_cells, fg=fg, outline=outline)
+        img = _render_line_img(txt, w_cells, outline=outline)
         for ty in range(2):
             for tx in range(w_cells):
                 assert (col + tx, row + ty) in erased, (
@@ -121,28 +114,15 @@ def _patch_hp0_hardness(chunk):
         (68, 4, ' CAP'),
     )
     for start, w_cells, txt in slices:
-        img = _render_line_img(txt, w_cells, fg=15, outline=1)
-        for ty in range(2):
-            for tx in range(w_cells):
-                t = start + ty * w_cells + tx
-                chunk[t * 32:(t + 1) * 32] = _tile_bytes(
-                    [r[tx * 8:tx * 8 + 8] for r in img[ty * 8:ty * 8 + 8]]
-                )
+        labels.put_tiles(chunk, _render_line_img(txt, w_cells, outline=1), labels.rows_order(start, w_cells, 2))
 
 
 def _patch_slot_label(chunk, txt, n_blocks):
     """Patch H_PUYODT[77] (6x 2x2=12x2) or H_PUYODT[79] (4x 2x2=8x2) packed as 2x2 row-major blocks."""
     w_cells = n_blocks * 2
     assert len(chunk) == n_blocks * 4 * 32 and len(txt) <= w_cells
-    img = _render_line_img(txt.ljust(w_cells), w_cells, fg=15, outline=1)
-    for b in range(n_blocks):
-        for ty in range(2):
-            for tx in range(2):
-                t = b * 4 + ty * 2 + tx
-                cx = b * 2 + tx
-                chunk[t * 32:(t + 1) * 32] = _tile_bytes(
-                    [r[cx * 8:cx * 8 + 8] for r in img[ty * 8:ty * 8 + 8]]
-                )
+    img = _render_line_img(txt.ljust(w_cells), w_cells, outline=1)
+    labels.put_tiles(chunk, img, [[(cx // 2) * 4 + ty * 2 + cx % 2 for cx in range(w_cells)] for ty in range(2)])
 
 
 # Declarative spec for all 23 H_PUYODT.BIN VDP2 map/tile pairs:
@@ -454,7 +434,7 @@ def apply_hpuyodt(hp):
     """Apply all Milestone C English UI translations to an unpacked H_PUYODT.BIN dict."""
     chunks = hp['chunks']
     for ti, mi, w, h, outline, rects, lines in HPUYODT_SCREENS:
-        patch_vdp2_screen(chunks[ti], chunks[mi], w, h, rects, lines, fg=15, outline=outline)
+        patch_vdp2_screen(chunks[ti], chunks[mi], w, h, rects, lines, outline=outline)
     _patch_difficulty_cards(chunks[19], chunks[20])
     _patch_hp0_hardness(chunks[0])
     _patch_slot_label(chunks[77], 'NEW GAME', 6)
@@ -464,22 +444,7 @@ def apply_hpuyodt(hp):
 def apply_demo_g02_nomi(tiles):
     """Translate Tsuu Character Select 3x3 Nomi portrait (DEMO_G02[12] tiles 0xA1..0xA9, row-major)."""
     assert len(tiles) >= 0xAA * 32 and len(tiles) % 32 == 0
-    img = [[0] * 24 for _ in range(24)]
-    for ty in range(3):
-        for tx in range(3):
-            cell = gfx.tile_get(tiles, 0xA1 + ty * 3 + tx)
-            for y in range(8):
-                img[ty * 8 + y][tx * 8:tx * 8 + 8] = cell[y]
-    for y in range(2, 19):
-        for x in range(2, 22):
-            if (y == 17 and x in (11, 12)) or (y == 18 and x in (10, 11, 12)):
-                continue
-            img[y][x] = 7
-    labels._draw_tiny(img, "I'M", 3, 0xC, outline=1)
-    labels._draw_tiny(img, "HERE", 10, 0xC, outline=1)
-    for ty in range(3):
-        for tx in range(3):
-            gfx.tile_put(tiles, 0xA1 + ty * 3 + tx, [r[tx * 8:tx * 8 + 8] for r in img[ty * 8:ty * 8 + 8]])
+    labels.here_icon(tiles, labels.rows_order(0xA1, 3, 3), 7, 0xC)
 
 
 def _pack_img(tiles, tmap, base_word, w_tiles, h_tiles, img, pool, dedup):

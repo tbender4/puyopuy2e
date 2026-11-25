@@ -188,9 +188,6 @@ def _draw_mouth_text(clean, cavity, lines, frame_idx):
     out = [row[:] for row in clean]
     # Vertical squash / fade across mouth-closing frames: f0 (open), f1 (mid), f2 (small)
     fill = (9, 10, 10)[frame_idx]
-    outline = (2, 2, 11)[frame_idx] if frame_idx == 2 else 2
-    if frame_idx == 2:
-        fill, outline = 10, 2
 
     # Compute mouth vertical centre from cavity
     c_ys = [y for y in range(h) for x in range(w) if cavity[y][x]]
@@ -235,7 +232,7 @@ def _draw_mouth_text(clean, cavity, lines, frame_idx):
                 0 <= y + dy < h and 0 <= x + dx < w and text_mask[y + dy][x + dx]
                 for dy in (-1, 0, 1) for dx in (-1, 0, 1)
             ):
-                out[y][x] = outline
+                out[y][x] = 2
     return out
 
 
@@ -254,10 +251,8 @@ def patch_mode_select(tiles, tmap, modes, blank, template_base=0x552):
             if f == 0:
                 blocks.append((off + 2, 8, 1, crop(0, 1, 8, 1), 10))
                 blocks.append((off + 20, 10, 5, crop(1, 0, 10, 5), 10))
-            elif f == 1:
-                blocks.append((off + 22, 8, 4, crop(1, 1, 8, 4), 10))
-            else:
-                blocks.append((off + 22, 8, 3, crop(1, 1, 8, 3), 10))
+            else:  # f1 4 rows, f2 3 rows
+                blocks.append((off + 22, 8, 5 - f, crop(1, 1, 8, 5 - f), 10))
     gfx.replace_blocks(tiles, tmap, blocks, blank=blank)
 
 
@@ -306,13 +301,9 @@ def apply_rule_edit(prog, streams, at, end):
     preserving chain-curve icons 0x3c..0x3f and narrow digits at tiles 256..277."""
     glyphs = font.font()
     index = {}
-    for group in (RULE_EDIT_MENU, RULE_EDIT_CREATE):
-        for _, _, txt, sh, _ in group:
-            for p in linkmsg.pairs(txt, sh):
-                if p != '  ':
-                    index.setdefault(p, len(index))
-    for txt in RULE_EDIT_HARD:
-        for p in linkmsg.pairs(txt, 0):
+    texts = [(t, sh) for g in (RULE_EDIT_MENU, RULE_EDIT_CREATE) for _, _, t, sh, _ in g] + [(t, 0) for t in RULE_EDIT_HARD]
+    for txt, sh in texts:
+        for p in linkmsg.pairs(txt, sh):
             if p != '  ':
                 index.setdefault(p, len(index))
     if len(index) > 0x3c:
@@ -320,10 +311,7 @@ def apply_rule_edit(prog, streams, at, end):
 
     tiles = streams.get(0x091461)
     for p, g in index.items():
-        img = linkmsg.glyph_pixels(p, glyphs)
-        for q, (dx, dy) in enumerate(((0, 0), (0, 8), (8, 0), (8, 8))):
-            cell = [row[dx:dx + 8] for row in img[dy:dy + 8]]
-            gfx.tile_put(tiles, 4 * g + q, cell)
+        labels.put_tiles(tiles, linkmsg.glyph_pixels(p, glyphs), labels.sprite_order(4 * g, 2, 2, 1))
     blank = [[0] * 8 for _ in range(8)]
     for g in range(len(index), 0x3c):
         for q in range(4):

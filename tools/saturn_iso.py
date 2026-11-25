@@ -139,17 +139,14 @@ def parse_iso(f):
     return entries
 
 
-def read_iso_file(f, entry_or_name, entries=None):
-    """Read exact bytes of one ISO-9660 file given its entry dict or filename."""
-    if isinstance(entry_or_name, str):
-        if entries is None:
-            entries = parse_iso(f)
-        key = _norm_name(entry_or_name)
-        if key not in entries:
-            raise KeyError(f'file not found in ISO root: {entry_or_name}')
-        entry = entries[key]
-    else:
-        entry = entry_or_name
+def read_iso_file(f, name, entries=None):
+    """Read exact bytes of one ISO-9660 root file by name."""
+    if entries is None:
+        entries = parse_iso(f)
+    key = _norm_name(name)
+    if key not in entries:
+        raise KeyError(f'file not found in ISO root: {name}')
+    entry = entries[key]
     out = bytearray()
     rem, lba = entry['size'], entry['lba']
     while rem > 0:

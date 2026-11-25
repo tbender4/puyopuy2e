@@ -2,7 +2,7 @@
 
 Milestone A: patches /0;1 ASCII strings + sprite lists and ports all shared MD/Arcade English
 graphics across the 8 Bits Lab .BIN banks (DEMO_G00/03/04/05/06, GFILE08/09, FACE_G03),
-reusing existing Arcade/MD helpers directly with zero edits to those modules."""
+reusing existing Arcade/MD helpers directly."""
 import os, struct, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -313,62 +313,19 @@ def _apply_strings(prog):
 
 
 def _apply_logo(prog, chunk, mode):
-    if mode not in logo.MODES:
-        raise ValueError(f'unknown logo mode: {mode!r}')
     if mode == 'original':
         return
-    img = png.read(os.path.join(ROOT, 'assets', 'gfx', 'logo_puyo.png'))
-    group_imgs = logo._split_groups(img)
-    # Work in MD tile order for G0..G4 (tiles 0..95 = 0x000..0xc00), keeping G5..G8 untouched
+    # logo.apply packs G0..G4 in MD tile order (tiles 0..95); VDP1 needs them re-swizzled per sprite
     work = bytearray(0xc00)
-    next_tile, starts = 0, []
-    for g_img, grp in zip(group_imgs, logo.GROUP_LAYOUT):
-        grp_starts = []
-        for (_, _, w, h, sx, sy) in grp:
-            grp_starts.append(next_tile)
-            for c in range(w):
-                for r in range(h):
-                    x0, y0 = sx + 8 * c, sy + 8 * r
-                    cell = [(row[x0:x0 + 8] + [0] * 8)[:8] for row in g_img[y0:y0 + 8]]
-                    gfx.tile_put(work, next_tile, cell)
-                    next_tile += 1
-        starts.append(grp_starts)
-    assert next_tile <= logo.FIRST_RED
-
+    work[0x8a0:0xc00] = saturn_arch.sprites_to_tiles(chunk[0x8a0:0xc00], LOGO_RED_ORIG_SPECS)
+    logo.apply(prog, _Streams({logo.TILES: work}), mode, LOGO_TABLES)
     chunk[0x000:0x8a0] = saturn_arch.tiles_to_sprites(work[0x000:0x8a0], LOGO_G01_SPECS)
     if mode == 'with-red-puyos':
-        work[0x8a0:0xc00] = saturn_arch.sprites_to_tiles(chunk[0x8a0:0xc00], LOGO_RED_ORIG_SPECS)
-        logo._repack_red_puyos(work, bytes(work))
         chunk[0x8a0:0xc00] = saturn_arch.tiles_to_sprites(work[0x8a0:0xc00], LOGO_RED_CROP_SPECS)
-
-    for table in LOGO_TABLES:
-        for g, (at, n) in enumerate(logo.read_groups(prog, table)):
-            if g < 2:
-                spec = logo.GROUP_LAYOUT[g]
-                assert len(spec) <= n
-                e0 = at + 2
-                low = prog[e0 + 3]  # preserves Saturn Z-priority flag (0x02)
-                attr0 = prog[e0 + 4] << 8 | prog[e0 + 5]
-                prog[at:at + 2] = struct.pack('>H', len(spec))
-                for k, (xr, yr, w, h, _, _) in enumerate(spec):
-                    e = at + 2 + 8 * k
-                    prog[e:e + 8] = struct.pack(
-                        '>hBBHh', yr, (w - 1) << 2 | (h - 1), low,
-                        (attr0 & 0xf800) | (logo.FIRST + starts[g][k]), xr,
-                    )
-            elif g in logo.RED_X:
-                if mode == 'no-red-puyos':
-                    for k in range(n):
-                        prog[at + 2 + 8 * k:at + 4 + 8 * k] = struct.pack('>h', logo.OFFSCREEN_Y)
-                else:
-                    assert n == 1
-                    e = at + 2
-                    attr = prog[e + 4] << 8 | prog[e + 5]
-                    prog[e:e + 8] = struct.pack('>hBBHh', logo.RED_Y, (2 << 2) | 1, prog[e + 3], attr, logo.RED_X[g])
 
 
 def _apply_titles_and_allclear(tut_tiles, tut_map, allclear_map):
-    # Same as md_build._apply_titles + ALL CLEAR, using Saturn's empty tile 0x08 (not MD 0x1c)
+    # Same as titles.apply + labels.apply_allclear, using Saturn's empty tile 0x08 (not MD 0x1c)
     letters = sorted(set(''.join(titles.TITLES)) - {' '})
     assert titles.FIRST_TILE + 2 * len(letters) <= titles.LAST_TILE + 1
     slot = {}
@@ -417,8 +374,7 @@ def _apply_levels(prog, chunk):
                         for dy, dx in ((1, 0), (0, 1), (1, 1)):
                             if y + dy < 8 and xx + dx < px_w and img[y + dy][xx + dx] == 0:
                                 img[y + dy][xx + dx] = 1
-        for tx in range(w_tiles):
-            gfx.tile_put(tiles_buf, next_tile + tx, [row[tx * 8:tx * 8 + 8] for row in img])
+        labels.put_tiles(tiles_buf, img, [list(range(next_tile, next_tile + w_tiles))])
         word_info[word] = (next_tile, w_tiles, levels.PITCH * len(word) - 1)
         next_tile += w_tiles
 
