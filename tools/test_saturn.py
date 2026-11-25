@@ -460,7 +460,18 @@ def test_saturn_ui_units():
     assert all(nomi_bot[y][x] == 5 for y in range(3, 8) for x in range(24))
     used_ids = {struct.unpack_from('>H', g2_m, i)[0] for i in range(0, len(g2_m), 2)}
     assert used_ids <= ({0} | set(range(0x19, 0x50))) and len(used_ids) > 10
-    print('PASS Milestone C saturn_ui synthetic unit tests (VDP2 screen, hardness, slot, START!, Nomi)')
+    # 5. apply_demo_g01_nomi preserves dot (0), arrows (1..3, 0x32), blank (0x16), and writes YAY!/K.O.
+    g1_t = bytearray(51 * 32)
+    g1_t[0:4 * 32] = b'\xAA' * (4 * 32)
+    g1_t[0x32 * 32:0x33 * 32] = b'\xBB' * 32
+    g1_m = bytearray(struct.pack('>53H', *range(53)))
+    saturn_ui.apply_demo_g01_nomi(g1_t, g1_m)
+    assert g1_t[0:4 * 32] == b'\xAA' * (4 * 32) and g1_t[0x32 * 32:0x33 * 32] == b'\xBB' * 32
+    assert not any(g1_t[0x16 * 32:0x17 * 32])
+    m_words = struct.unpack('>53H', g1_m)
+    assert m_words[:4] == (0, 1, 2, 3) and m_words[52] == 52
+    assert set(m_words[4:52]) <= set(range(0x04, 0x32)) and len(set(m_words[4:52])) > 20
+    print('PASS Milestone C saturn_ui synthetic unit tests (VDP2 screen, hardness, slot, START!, Nomi x2)')
 
 
 def test_real_disc():
@@ -524,6 +535,8 @@ def test_real_disc():
         orig_g04 = saturn_iso.read_iso_file(f, 'DEMO_G04.BIN', entries)
         orig_logo = bytes(saturn_arch.unpack_bank(orig_g04)['chunks'][7])
         orig_hp_lens = [len(c) for c in hp['chunks']]
+        orig_g01_b = saturn_arch.unpack_bank(saturn_iso.read_iso_file(f, 'DEMO_G01.BIN', entries))
+        orig_g01_t6, orig_g01_m7 = bytes(orig_g01_b['chunks'][6]), bytes(orig_g01_b['chunks'][7])
         orig_g02_t12 = bytes(saturn_arch.unpack_bank(saturn_iso.read_iso_file(f, 'DEMO_G02.BIN', entries))['chunks'][12])
     groups0 = logo.read_groups(orig_0, saturn_build.LOGO_TABLES[0])
     for mode in logo.MODES:
@@ -549,6 +562,14 @@ def test_real_disc():
             elif name != '0':
                 assert len(data) <= saturn_arch.LOW_WRAM_SLOT
                 unpacked[name] = saturn_arch.unpack_bank(data)
+        # Verify DEMO_G01[6]+[7] preserved dot/arrows (0..3, 0x32) & blank (0x16) while translating YAY!/K.O.
+        g01_t6 = bytes(unpacked['DEMO_G01.BIN']['chunks'][6])
+        g01_m7 = bytes(unpacked['DEMO_G01.BIN']['chunks'][7])
+        assert len(g01_t6) == len(orig_g01_t6) and len(g01_m7) == len(orig_g01_m7)
+        assert g01_t6[:4 * 32] == orig_g01_t6[:4 * 32] and g01_t6[0x32 * 32:] == orig_g01_t6[0x32 * 32:]
+        assert not any(g01_t6[0x16 * 32:0x17 * 32])
+        assert g01_m7[:8] == orig_g01_m7[:8] and g01_m7[-2:] == orig_g01_m7[-2:]
+        assert g01_t6[4 * 32:0x32 * 32] != orig_g01_t6[4 * 32:0x32 * 32]
         # Verify DEMO_G02[12] preserved bg stripes (0x00..0x18) & other 35 portraits (only 0x19..0x4f & Nomi 0xA1..0xA9 patched)
         g02_new = bytes(unpacked['DEMO_G02.BIN']['chunks'][12])
         assert g02_new[:0x19 * 32] == orig_g02_t12[:0x19 * 32]

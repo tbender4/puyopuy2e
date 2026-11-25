@@ -54,7 +54,7 @@ SATURN_MODES = (
 )
 
 TARGET_BANKS = (
-    'DEMO_G00.BIN', 'DEMO_G02.BIN', 'DEMO_G03.BIN', 'DEMO_G04.BIN', 'DEMO_G05.BIN',
+    'DEMO_G00.BIN', 'DEMO_G01.BIN', 'DEMO_G02.BIN', 'DEMO_G03.BIN', 'DEMO_G04.BIN', 'DEMO_G05.BIN',
     'DEMO_G06.BIN', 'GFILE08.BIN', 'GFILE09.BIN', 'FACE_G03.BIN',
 )
 
@@ -537,8 +537,9 @@ def build(src_bin, logo_mode=logo.DEFAULT_MODE):
         banks['DEMO_G03.BIN']['chunks'][16], banks['DEMO_G03.BIN']['chunks'][17],
     )
 
-    # 5. Milestone C: Saturn-native H_PUYODT.BIN UI screens + DEMO_G02 START! & Nomi portrait
+    # 5. Milestone C: Saturn-native H_PUYODT.BIN UI screens + DEMO_G01/G02 Nomi & START!
     saturn_ui.apply_hpuyodt(hp)
+    saturn_ui.apply_demo_g01_nomi(banks['DEMO_G01.BIN']['chunks'][6], banks['DEMO_G01.BIN']['chunks'][7])
     saturn_ui.apply_demo_g02_start(banks['DEMO_G02.BIN']['chunks'][12], banks['DEMO_G02.BIN']['chunks'][13])
     saturn_ui.apply_demo_g02_nomi(banks['DEMO_G02.BIN']['chunks'][12])
 

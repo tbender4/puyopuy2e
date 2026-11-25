@@ -415,6 +415,49 @@ def apply_demo_g02_nomi(tiles):
             gfx.tile_put(tiles, 0xA1 + ty * 3 + tx, [r[tx * 8:tx * 8 + 8] for r in img[ty * 8:ty * 8 + 8]])
 
 
+def _pack_img(tiles, tmap, base_word, w_tiles, h_tiles, img, pool, dedup):
+    """Deduplicate an (8*w_tiles)x(8*h_tiles) 4bpp image into `pool` and write row-major IDs into `tmap`."""
+    for ty in range(h_tiles):
+        for tx in range(w_tiles):
+            tb = _tile_bytes([r[tx * 8:tx * 8 + 8] for r in img[ty * 8:ty * 8 + 8]])
+            tid = dedup.get(tb)
+            if tid is None:
+                if not pool:
+                    raise ValueError('image exceeded exclusive tile pool budget')
+                tid = pool.pop(0)
+                tiles[tid * 32:(tid + 1) * 32] = tb
+                dedup[tb] = tid
+            struct.pack_into('>H', tmap, (base_word + ty * w_tiles + tx) * 2, tid)
+
+
+def apply_demo_g01_nomi(tiles, tmap):
+    """Translate High Score (BEST RECORDS) right-window Nomi 'やった'/'ばたんきゅー' to 'YAY!'/'K.O.'."""
+    assert len(tiles) == 51 * 32 and len(tmap) == 53 * 2 and not any(tiles[0x16 * 32:0x17 * 32])
+
+    def _banner(mask, shades):
+        mw, mh = len(mask[0]), len(mask)
+        img = [[0] * 48 for _ in range(32)]
+        x0, y0 = (48 - mw) // 2, (32 - mh) // 2
+        for y, row in enumerate(mask):
+            c = shades[min(len(shades) - 1, y * len(shades) // mh)]
+            for x, v in enumerate(row):
+                if v:
+                    img[y0 + y][x0 + x] = c
+        return labels.ring(img, 1, set(shades))
+
+    m_yay = [a + [0, 0] + b for a, b in zip(labels.scaled_mask('YAY', 10, 20, 2), labels.scaled_mask('!', 4, 20, 0))]
+    yay_img = _banner(m_yay, (13, 11, 10, 9, 8))
+    ko_img = _banner(labels.scaled_mask('K.O.', 10, 20, 2), (15, 6, 5, 4, 3))
+
+    # Preserve tile 0 (flea dot), tiles 1..3 & 0x32 (4 directional arrows), and blank tile 0x16
+    pool = [t for t in range(0x04, 0x32) if t != 0x16]
+    dedup = {bytes(32): 0x16}
+    _pack_img(tiles, tmap, 4, 6, 4, yay_img, pool, dedup)
+    _pack_img(tiles, tmap, 28, 6, 4, ko_img, pool, dedup)
+    for t in pool:
+        tiles[t * 32:(t + 1) * 32] = bytes(32)
+
+
 def apply_demo_g02_start(tiles, tmap):
     """Replace Tsuu Character Select 12x5 Japanese 'すたぁと！' with 'START!' inside tiles 0x19..0x4f."""
     assert len(tiles) >= 0x50 * 32 and len(tiles) % 32 == 0 and not any(tiles[:32])
@@ -436,17 +479,6 @@ def apply_demo_g02_start(tiles, tmap):
     img = labels.ring(img, 15, {5, 9, 10, 11, 12})
 
     pool = list(range(0x19, 0x50))  # 55 exclusive tiles (preserves bg 0x01..0x18 & portraits 0x50..0x19c)
-    dedup = {bytes(32): 0}
-    for ty in range(5):
-        for tx in range(12):
-            tb = _tile_bytes([r[tx * 8:tx * 8 + 8] for r in img[ty * 8:ty * 8 + 8]])
-            tid = dedup.get(tb)
-            if tid is None:
-                if not pool:
-                    raise ValueError('DEMO_G02 START! exceeded 55-tile budget (0x19..0x4f)')
-                tid = pool.pop(0)
-                tiles[tid * 32:(tid + 1) * 32] = tb
-                dedup[tb] = tid
-            struct.pack_into('>H', tmap, (ty * 12 + tx) * 2, tid)
+    _pack_img(tiles, tmap, 0, 12, 5, img, pool, {bytes(32): 0})
     for t in pool:
         tiles[t * 32:(t + 1) * 32] = bytes(32)
