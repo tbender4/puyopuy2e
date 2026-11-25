@@ -32,7 +32,8 @@ if [ ! -f "$PATCH" ]; then echo "Patch not found: $PATCH" >&2; exit 1; fi
 abs_path() {
     dir=$(dirname -- "$1")
     base=$(basename -- "$1")
-    printf '%s/%s\n' "$(cd -- "$dir" && pwd -P)" "$base"
+    d=$(cd -- "$dir" && pwd -P) || exit 1
+    printf '%s/%s\n' "$d" "$base"
 }
 
 apply_ips() {
