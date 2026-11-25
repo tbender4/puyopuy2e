@@ -13,7 +13,7 @@ sys.meta_path.insert(0, _BlockPIL())
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
-import logo, lz, saturn_arch, saturn_build, saturn_iso, saturn_ui
+import gfx, logo, lz, saturn_arch, saturn_build, saturn_iso, saturn_ui
 
 SATURN_BIN = os.path.join(ROOT, 'saturn', 'PUYO_PUYO_TSU____ (Track 1).bin')
 MD_ROM = os.path.join(ROOT, 'Puyo Puyo 2 (Japan) (v1.1).md')
@@ -436,16 +436,31 @@ def test_saturn_ui_units():
     # First column of pixels in tile 0 (row 0..15) should include outline pixel (1) thanks to x_shift=1
     assert 1 in [b >> 4 for b in s77[0:32:4]]
 
-    # 4. apply_demo_g02_start preserves 0x00..0x18 and 0x50.. while writing START! inside 0x19..0x4f
-    g2_t = bytearray(0x60 * 32)
+    # 4. apply_demo_g02_start + apply_demo_g02_nomi preserve surrounding tiles, arrow cap/tip, & flea
+    g2_t = bytearray(0xB0 * 32)
     g2_t[1 * 32:0x19 * 32] = b'\x33' * (0x18 * 32)
-    g2_t[0x50 * 32:] = b'\x44' * (0x10 * 32)
+    g2_t[0x50 * 32:0xA1 * 32] = b'\x44' * (0x51 * 32)
+    g2_t[0xAA * 32:] = b'\x66' * (0x06 * 32)
+    # Seed Nomi bottom tiles (rows 16..23) with sentinel 0x55 so we verify arrow cap/tip kept & kana dust cleared
+    g2_t[0xA7 * 32:0xAA * 32] = b'\x55' * (3 * 32)
     g2_m = bytearray(12 * 5 * 2)
     saturn_ui.apply_demo_g02_start(g2_t, g2_m)
-    assert g2_t[1 * 32:0x19 * 32] == b'\x33' * (0x18 * 32) and g2_t[0x50 * 32:] == b'\x44' * (0x10 * 32)
+    saturn_ui.apply_demo_g02_nomi(g2_t)
+    assert g2_t[1 * 32:0x19 * 32] == b'\x33' * (0x18 * 32)
+    assert g2_t[0x50 * 32:0xA1 * 32] == b'\x44' * (0x51 * 32) and g2_t[0xAA * 32:] == b'\x66' * (0x06 * 32)
+    nomi_bot = [[0] * 24 for _ in range(8)]
+    for tx in range(3):
+        blk = gfx.tile_get(g2_t, 0xA7 + tx)
+        for y in range(8):
+            nomi_bot[y][tx * 8:tx * 8 + 8] = blk[y]
+    # Row 17 (bot y=1): arrow cap (11..12) preserved (5); row 18 (bot y=2): arrow (10..12) preserved, kana dust (7..8, 15..18) cleared to 7
+    assert all(nomi_bot[1][x] == 5 for x in (11, 12)) and all(nomi_bot[2][x] == 5 for x in (10, 11, 12))
+    assert all(nomi_bot[2][x] == 7 for x in (7, 8, 15, 16, 17, 18))
+    # Rows 19..23 (bot y=3..7) must remain completely untouched (5)
+    assert all(nomi_bot[y][x] == 5 for y in range(3, 8) for x in range(24))
     used_ids = {struct.unpack_from('>H', g2_m, i)[0] for i in range(0, len(g2_m), 2)}
     assert used_ids <= ({0} | set(range(0x19, 0x50))) and len(used_ids) > 10
-    print('PASS Milestone C saturn_ui synthetic unit tests (VDP2 screen, hardness, slot, START!)')
+    print('PASS Milestone C saturn_ui synthetic unit tests (VDP2 screen, hardness, slot, START!, Nomi)')
 
 
 def test_real_disc():
@@ -524,12 +539,22 @@ def test_real_disc():
                 assert len(data) <= saturn_arch.LOW_WRAM_SLOT
                 hp_new = saturn_arch.unpack_hpuyodt(data)
                 assert [len(c) for c in hp_new['chunks']] == orig_hp_lens
+                # Verify Practice (6,7) & Normal (16,7) cards translated with intact borders, Tsuu (26,7) untouched
+                for cx, expect_same in ((6, False), (16, False), (26, True)):
+                    orig_c = gfx.block_pixels(hp['chunks'][19], hp['chunks'][20], (7 * 40 + cx) * 2, 8, 8, 40)
+                    new_c = gfx.block_pixels(hp_new['chunks'][19], hp_new['chunks'][20], (7 * 40 + cx) * 2, 8, 8, 40)
+                    assert (new_c == orig_c) == expect_same
+                    assert new_c[:3] == orig_c[:3] and new_c[61:] == orig_c[61:]
+                    assert all(nr[:3] == or_[:3] and nr[61:] == or_[61:] for nr, or_ in zip(new_c, orig_c))
             elif name != '0':
                 assert len(data) <= saturn_arch.LOW_WRAM_SLOT
                 unpacked[name] = saturn_arch.unpack_bank(data)
-        # Verify DEMO_G02[12] preserved bg stripes (0x00..0x18) & all 36 rival portraits (0x50..0x19c)
+        # Verify DEMO_G02[12] preserved bg stripes (0x00..0x18) & other 35 portraits (only 0x19..0x4f & Nomi 0xA1..0xA9 patched)
         g02_new = bytes(unpacked['DEMO_G02.BIN']['chunks'][12])
-        assert g02_new[:0x19 * 32] == orig_g02_t12[:0x19 * 32] and g02_new[0x50 * 32:] == orig_g02_t12[0x50 * 32:]
+        assert g02_new[:0x19 * 32] == orig_g02_t12[:0x19 * 32]
+        assert g02_new[0x50 * 32:0xA1 * 32] == orig_g02_t12[0x50 * 32:0xA1 * 32]
+        assert g02_new[0xA1 * 32:0xAA * 32] != orig_g02_t12[0xA1 * 32:0xAA * 32]
+        assert g02_new[0xAA * 32:] == orig_g02_t12[0xAA * 32:]
         # Verify blank tiles stay all-zero after replace_blocks
         assert not any(unpacked['DEMO_G06.BIN']['chunks'][13][0x04 * 32:0x05 * 32])
         assert not any(unpacked['DEMO_G03.BIN']['chunks'][17][0x9c * 32:0x9d * 32])

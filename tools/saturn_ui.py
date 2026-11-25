@@ -183,21 +183,21 @@ HPUYODT_SCREENS = (
     (19, 20, 40, 28, 1, [(4, 2, 32, 2)], [
         (11, 2, 'Select Difficulty.'),
     ]),
-    # 1P Level Select descriptions (blitted into frame at r19)
-    (21, 24, 23, 5, None, [(0, 0, 23, 5)], [
+    # 1P Level Select descriptions (blitted into frame at r19; outline=1 pops over translucent box)
+    (21, 24, 23, 5, 1, [(0, 0, 23, 5)], [
         (5, 0, 'PRACTICE MODE'),
         (1, 3, 'Battle just 4 rivals.'),
     ]),
-    (22, 25, 31, 5, None, [(0, 0, 31, 5)], [
+    (22, 25, 31, 5, 1, [(0, 0, 31, 5)], [
         (9, 0, 'NORMAL MODE'),
         (1, 3, 'Climb the tower of rivals.'),
     ]),
-    (23, 26, 23, 5, None, [(0, 0, 23, 5)], [
+    (23, 26, 23, 5, 1, [(0, 0, 23, 5)], [
         (7, 0, 'TSUU MODE'),
         (1, 3, 'Battle all 36 rivals.'),
     ]),
     # Save file select (cursor highlights (4,6/10/14/18,8,2) and (4,22,12,2); dynamic slots at col 14)
-    (27, 28, 40, 28, None, [(0, 0, 40, 28)], [
+    (27, 28, 40, 28, 1, [(0, 0, 40, 28)], [
         (8, 2,  'Select a file to continue.'),
         (4, 6,  'BACK'),
         (4, 10, 'DATA 1'),
@@ -206,7 +206,7 @@ HPUYODT_SCREENS = (
         (4, 22, 'DELETE DATA'),
     ]),
     # Delete save select (cursor highlights (4,6/10/14/18,8,2); dynamic slots at col 14)
-    (29, 30, 40, 28, None, [(0, 0, 40, 28)], [
+    (29, 30, 40, 28, 1, [(0, 0, 40, 28)], [
         (8, 2,  'Delete which save file?'),
         (4, 6,  'BACK'),
         (4, 10, 'DATA 1'),
@@ -309,14 +309,110 @@ HPUYODT_SCREENS = (
 )
 
 
+def _render_card_word(word, w_each, h_each, gap, shades, outline=1):
+    """Render chunky arcade lettering with vertical band shading + 1px outline."""
+    m = labels.scaled_mask(word, w_each, h_each, gap)
+    mw, mh = len(m[0]), len(m)
+    canvas = [[0] * (mw + 2) for _ in range(mh + 2)]
+    for y, row in enumerate(m):
+        c = shades[min(len(shades) - 1, y * len(shades) // mh)]
+        for x, v in enumerate(row):
+            if v:
+                canvas[y + 1][x + 1] = c
+    return labels.ring(canvas, outline, set(shades))
+
+
+def _stamp_card(img, sprite, y0):
+    x0 = (64 - len(sprite[0])) // 2
+    for y, row in enumerate(sprite):
+        yy = y0 + y
+        if 3 <= yy < 61:
+            for x, v in enumerate(row):
+                xx = x0 + x
+                if v and 3 <= xx < 61:
+                    img[yy][xx] = v
+
+
+def _patch_difficulty_cards(tiles, tmap):
+    """Translate Japanese text inside Practice (6,7) and Normal (16,7) art cards; keep iconic Tsuu kanji."""
+    # 1. Practice card: clear kana above Arle/Carbuncle (preserving Arle from arle_left[y]..54) & draw PRACTICE
+    prac = gfx.block_pixels(tiles, tmap, (7 * 40 + 6) * 2, 8, 8, 40)
+    arle_left = {20: 47, 21: 44, 22: 42, 23: 40, 24: 37, 25: 36, 26: 35, 27: 32, 28: 30, 29: 30, 30: 25, 31: 25, 32: 25}
+    for y in range(3, 33):
+        for x in range(3, arle_left.get(y, 61)):
+            prac[y][x] = 0
+        if 20 <= y <= 29:
+            for x in range(53 if y <= 21 else 55, 61):
+                prac[y][x] = 0
+    _stamp_card(prac, _render_card_word('PRACTICE', 6, 14, 1, (9, 9, 5, 5, 5, 4, 4)), 4)
+    gfx.replace_block(tiles, tmap, (7 * 40 + 6) * 2, 8, 8, prac, row_stride=40, blank=0)
+
+    # 2. Normal card: restore blue sky/clouds behind kana (preserving Tower & Arle) & draw NORMAL
+    norm = gfx.block_pixels(tiles, tmap, (7 * 40 + 16) * 2, 8, 8, 40)
+
+    def _sky(x, y):
+        if y <= 5:
+            return 3
+        if y <= 7:
+            return 6 if (6 <= x <= 14 or x >= 55) else 3
+        if y <= 14:
+            if x <= 17:
+                return 15 if 9 <= y <= 13 and x <= 15 else 11
+            if x >= 49:
+                return 15 if 9 <= y <= 13 and x >= 52 else 11
+            return 3
+        if y == 15:
+            return 11 if (x <= 14 or x >= 54) else 3
+        if y == 16:
+            return 6 if (x <= 11 or x >= 56) else 3
+        return 3
+
+    def _keep(x, y):
+        return (
+            (5 <= y <= 14 and 23 <= x <= 35) or (15 <= y <= 24 and 19 <= x <= 39) or
+            (25 <= y <= 34 and 15 <= x <= 41) or (22 <= y <= 26 and 41 <= x <= 51) or
+            (y == 27 and 41 <= x <= 53) or (28 <= y <= 34 and 36 <= x <= 55)
+        )
+
+    for y in range(3, 35):
+        for x in range(3, 61):
+            v = norm[y][x]
+            if v == 12 or (not _keep(x, y) and (v in (1, 4, 7, 9) or ((y <= 8 or y >= 15) and v == 15))):
+                norm[y][x] = _sky(x, y)
+    _stamp_card(norm, _render_card_word('NORMAL', 8, 12, 1, (15, 12, 12, 12, 9, 9)), 3)
+    gfx.replace_block(tiles, tmap, (7 * 40 + 16) * 2, 8, 8, norm, row_stride=40, blank=0)
+
+
 def apply_hpuyodt(hp):
     """Apply all Milestone C English UI translations to an unpacked H_PUYODT.BIN dict."""
     chunks = hp['chunks']
     for ti, mi, w, h, outline, rects, lines in HPUYODT_SCREENS:
         patch_vdp2_screen(chunks[ti], chunks[mi], w, h, rects, lines, fg=15, outline=outline)
+    _patch_difficulty_cards(chunks[19], chunks[20])
     _patch_hp0_hardness(chunks[0])
     _patch_slot_label(chunks[77], 'NEW GAME', 6)
     _patch_slot_label(chunks[79], 'CLEARED!', 4)
+
+
+def apply_demo_g02_nomi(tiles):
+    """Translate Tsuu Character Select 3x3 Nomi portrait (DEMO_G02[12] tiles 0xA1..0xA9, row-major)."""
+    assert len(tiles) >= 0xAA * 32 and len(tiles) % 32 == 0
+    img = [[0] * 24 for _ in range(24)]
+    for ty in range(3):
+        for tx in range(3):
+            cell = gfx.tile_get(tiles, 0xA1 + ty * 3 + tx)
+            for y in range(8):
+                img[ty * 8 + y][tx * 8:tx * 8 + 8] = cell[y]
+    for y in range(2, 19):
+        for x in range(2, 22):
+            if (y == 17 and x in (11, 12)) or (y == 18 and x in (10, 11, 12)):
+                continue
+            img[y][x] = 7
+    labels._draw_tiny(img, "I'M", 3, 0xC, outline=1)
+    labels._draw_tiny(img, "HERE", 10, 0xC, outline=1)
+    for ty in range(3):
+        for tx in range(3):
+            gfx.tile_put(tiles, 0xA1 + ty * 3 + tx, [r[tx * 8:tx * 8 + 8] for r in img[ty * 8:ty * 8 + 8]])
 
 
 def apply_demo_g02_start(tiles, tmap):

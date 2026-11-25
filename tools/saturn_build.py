@@ -537,9 +537,10 @@ def build(src_bin, logo_mode=logo.DEFAULT_MODE):
         banks['DEMO_G03.BIN']['chunks'][16], banks['DEMO_G03.BIN']['chunks'][17],
     )
 
-    # 5. Milestone C: Saturn-native H_PUYODT.BIN UI screens + DEMO_G02 Character Select START!
+    # 5. Milestone C: Saturn-native H_PUYODT.BIN UI screens + DEMO_G02 START! & Nomi portrait
     saturn_ui.apply_hpuyodt(hp)
     saturn_ui.apply_demo_g02_start(banks['DEMO_G02.BIN']['chunks'][12], banks['DEMO_G02.BIN']['chunks'][13])
+    saturn_ui.apply_demo_g02_nomi(banks['DEMO_G02.BIN']['chunks'][12])
 
     out = {'0': bytes(prog), 'H_PUYODT.BIN': saturn_arch.pack_hpuyodt(hp)}
     for name in TARGET_BANKS:
