@@ -118,7 +118,7 @@ def main():
     p = argparse.ArgumentParser(description='Generate verified IPS patches for Mega Drive and Arcade.')
     p.add_argument('--out', default=os.path.join(HERE, 'dist'), help='output directory (default: dist)')
     p.add_argument('--logo', choices=logo.MODES, action='append',
-                   help='logo variant to build (repeatable; default: all 3 modes)')
+                   help=f'logo variant to build (repeatable; default: {logo.DEFAULT_MODE})')
     p.add_argument('--roms-dir', default=None,
                    help='directory holding puyopuy2.zip and Puyo Puyo 2 (Japan) (v1.1).md')
     p.add_argument('--arcade', default=None, help='path to puyopuy2.zip')
@@ -130,7 +130,7 @@ def main():
     if args.no_md and args.no_arcade:
         raise SystemExit('nothing to build: both --no-md and --no-arcade set')
 
-    modes = list(dict.fromkeys(args.logo)) if args.logo else list(logo.MODES)
+    modes = list(dict.fromkeys(args.logo)) if args.logo else [logo.DEFAULT_MODE]
     os.makedirs(args.out, exist_ok=True)
     artifacts = []
     rom_root = args.roms_dir or HERE

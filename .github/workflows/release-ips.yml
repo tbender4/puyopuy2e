@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (leave empty for rYYYYMMDD-<sha>)'
+        description: 'Release tag (leave empty for rYYYYMMDD-HHMMSS-<sha>)'
         default: ''
       draft:
         description: 'Publish as draft release'
@@ -66,8 +66,8 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ -n "$INPUT_TAG" ]; then
             TAG="$INPUT_TAG"
           else
-            COMMIT_DATE="$(TZ=UTC0 git show -s --format=%cd --date=format-local:%Y%m%d "$GITHUB_SHA")"
-            TAG="r${COMMIT_DATE}-${SHORT_SHA}"
+            COMMIT_TS="$(TZ=UTC0 git show -s --format=%cd --date=format-local:%Y%m%d-%H%M%S "$GITHUB_SHA")"
+            TAG="r${COMMIT_TS}-${SHORT_SHA}"
           fi
 
           set --

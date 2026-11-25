@@ -114,6 +114,8 @@ def publish_github_release(repo, tag, files, token, title=None, body='', draft=F
     """Create or update a GitHub Release for `tag` and idempotently upload `files`."""
     rel = _find_release(repo, tag, token)
     spec = {'tag_name': tag, 'name': title or tag, 'body': body, 'draft': draft}
+    if not draft:
+        spec['make_latest'] = 'true'
     if target:
         spec['target_commitish'] = target
     if rel is None:

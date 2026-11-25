@@ -100,6 +100,7 @@ def test_publish_mock():
 
     def run_case(existing_releases, **kwargs):
         calls = []
+        payloads = []
         created = {
             'id': 42, 'tag_name': kwargs.get('tag', 'r20261124-1234567'),
             'draft': kwargs.get('draft', False), 'html_url': 'https://example/rel',
@@ -117,6 +118,7 @@ def test_publish_mock():
             if req.get_method() == 'GET':
                 return FakeResp(json.dumps(existing_releases).encode())
             if req.get_method() in ('POST', 'PATCH') and '/assets' not in req.full_url:
+                payloads.append(json.loads(req.data.decode('utf-8')))
                 return FakeResp(json.dumps(created).encode())
             return FakeResp(b'{}')
 
@@ -132,10 +134,10 @@ def test_publish_mock():
                 assert url == 'https://example/rel'
         finally:
             urllib.request.urlopen = orig_open
-        return calls
+        return calls, payloads
 
     # 1. Brand-new release per revision (404 on tag lookup -> check drafts -> POST /releases)
-    c_new = run_case([], tag='r20261124-abc1234', target='a' * 40)
+    c_new, p_new = run_case([], tag='r20261124-abc1234', target='a' * 40)
     assert c_new == [
         ('GET', 'https://api.github.com/repos/me/repo/releases/tags/r20261124-abc1234', None),
         ('GET', 'https://api.github.com/repos/me/repo/releases?per_page=30', None),
@@ -143,11 +145,12 @@ def test_publish_mock():
         ('POST', 'https://uploads.github.com/repos/me/repo/releases/42/assets?name=a.ips', 'application/octet-stream'),
         ('POST', 'https://uploads.github.com/repos/me/repo/releases/42/assets?name=b.zip', 'application/zip'),
     ], c_new
+    assert len(p_new) == 1 and p_new[0].get('make_latest') == 'true', p_new
 
     # 2. Idempotent re-run on already-published revision (O(1) tag lookup -> PATCH + replace asset)
     pub_rel = [{'id': 42, 'tag_name': 'r20261124-abc1234', 'draft': False, 'html_url': 'https://example/rel',
                 'assets': [{'id': 99, 'name': 'a.ips'}]}]
-    c_upd = run_case(pub_rel, tag='r20261124-abc1234', target='a' * 40)
+    c_upd, p_upd = run_case(pub_rel, tag='r20261124-abc1234', target='a' * 40)
     assert c_upd == [
         ('GET', 'https://api.github.com/repos/me/repo/releases/tags/r20261124-abc1234', None),
         ('PATCH', 'https://api.github.com/repos/me/repo/releases/42', 'application/json'),
@@ -155,16 +158,18 @@ def test_publish_mock():
         ('POST', 'https://uploads.github.com/repos/me/repo/releases/42/assets?name=a.ips', 'application/octet-stream'),
         ('POST', 'https://uploads.github.com/repos/me/repo/releases/42/assets?name=b.zip', 'application/zip'),
     ], c_upd
+    assert len(p_upd) == 1 and p_upd[0].get('make_latest') == 'true', p_upd
 
     # 3. Updating an existing draft (404 on tag lookup -> found in drafts -> PATCH)
     draft_rel = [{'id': 42, 'tag_name': 'r20261124-abc1234', 'draft': True, 'html_url': 'https://example/rel',
                   'assets': []}]
-    c_draft = run_case(draft_rel, tag='r20261124-abc1234', target='a' * 40, draft=True)
+    c_draft, p_draft = run_case(draft_rel, tag='r20261124-abc1234', target='a' * 40, draft=True)
     assert c_draft[:3] == [
         ('GET', 'https://api.github.com/repos/me/repo/releases/tags/r20261124-abc1234', None),
         ('GET', 'https://api.github.com/repos/me/repo/releases?per_page=30', None),
         ('PATCH', 'https://api.github.com/repos/me/repo/releases/42', 'application/json'),
     ], c_draft
+    assert len(p_draft) == 1 and 'make_latest' not in p_draft[0], p_draft
     print('PASS GitHub release publisher mock (new + published re-run + draft)')
 
 
