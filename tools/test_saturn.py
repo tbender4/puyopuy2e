@@ -379,25 +379,23 @@ def test_sh2_text_put_sim():
     assert rd32(0x25E0F000) == 0xF000000F and rd32(0x25E0F004) == 0x0F0000F0  # top tile rows 0..1
     assert rd32(0x25E0F03C) == 0x000FF000  # bottom tile row 15 (0x18)
 
-    # 2. Draw spaces (0x20 and 0x0000) at (22, 6) and (23, 6): write 0x057D, count stays 2
+    # 2. Draw space (0x20) at (22, 6): allocates all-zero transparent tiles 0x8782/0x8783, count -> 4
     _sim_sh2_text_put(code, saturn_build.RAM_BASE + saturn_build.TEXT_PUT, mem, task, 0x20)
-    assert rd16(task + 0x50) == 2 and rd16(task + 0x18) == 0x1706
-    assert rd32(nt(22, 6)) == 0x057D and rd32(nt(22, 7)) == 0x057D
-    _sim_sh2_text_put(code, saturn_build.RAM_BASE + saturn_build.TEXT_PUT, mem, task, 0x0000)
-    assert rd16(task + 0x50) == 2 and rd16(task + 0x18) == 0x1806
-    assert rd32(nt(23, 6)) == 0x057D and rd32(nt(23, 7)) == 0x057D
+    assert rd16(task + 0x50) == 4 and rd16(task + 0x18) == 0x1706 and rd16(0x0608D776) == 0x20
+    assert rd32(nt(22, 6)) == 0x8782 and rd32(nt(22, 7)) == 0x8783
+    assert all(mem.get(0x25E0F040 + i, 0) == 0 for i in range(64))
 
-    # 3. Draw 'A' again at (24, 6): cache hit -> reuses 0x8780/0x8781, count stays 2
+    # 3. Draw 'A' again at (23, 6): cache hit -> reuses 0x8780/0x8781, count stays 4
     _sim_sh2_text_put(code, saturn_build.RAM_BASE + saturn_build.TEXT_PUT, mem, task, ord('A'))
-    assert rd16(task + 0x50) == 2 and rd16(task + 0x18) == 0x1906
-    assert rd32(nt(24, 6)) == 0x8780 and rd32(nt(24, 7)) == 0x8781
+    assert rd16(task + 0x50) == 4 and rd16(task + 0x18) == 0x1806
+    assert rd32(nt(23, 6)) == 0x8780 and rd32(nt(23, 7)) == 0x8781
 
-    # 4. Draw 'B' at (25, 6): cache miss -> tiles 0x8782/0x8783 at 0x25E0F040, count -> 4
+    # 4. Draw 'B' at (24, 6): cache miss -> tiles 0x8784/0x8785 at 0x25E0F080, count -> 6
     _sim_sh2_text_put(code, saturn_build.RAM_BASE + saturn_build.TEXT_PUT, mem, task, ord('B'))
-    assert rd16(task + 0x50) == 4 and rd16(task + 0x18) == 0x1A06 and rd16(0x0608D776) == ord('B')
-    assert rd32(nt(25, 6)) == 0x8782 and rd32(nt(25, 7)) == 0x8783
-    assert rd32(0x25E0F040) == 0xFFFFFFFF and rd32(0x25E0F07C) == 0x00000000  # top row 0 & bottom row 15
-    print(f'PASS SH-2 text_put behavioral simulation ({len(code)} B, miss/space/0/hit/2nd-glyph verified)')
+    assert rd16(task + 0x50) == 6 and rd16(task + 0x18) == 0x1906 and rd16(0x0608D778) == ord('B')
+    assert rd32(nt(24, 6)) == 0x8784 and rd32(nt(24, 7)) == 0x8785
+    assert rd32(0x25E0F080) == 0xFFFFFFFF and rd32(0x25E0F0BC) == 0x00000000  # top row 0 & bottom row 15
+    print(f'PASS SH-2 text_put behavioral simulation ({len(code)} B, miss/space/hit/2nd-glyph verified)')
 
 
 def test_saturn_ui_units():

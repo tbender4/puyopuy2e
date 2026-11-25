@@ -121,22 +121,9 @@ def assemble_text_put(base_pc=RAM_BASE + TEXT_PUT):
     MOVL_LIT(6, 0x25E10000)     # mov.l   .L_nt_base, r6
     W(0x361C)                   # add     r1, r6            ; r6 = nt_addr
 
-    # 2. Space fast-path (code == 0x0000 or 0x0020): write blank interior tile 0x057D
-    W(0x2558)                   # tst     r5, r5
-    BR(0x8900, 8, 'space')      # bt      space
-    W(0xE020)                   # mov     #0x20, r0
-    W(0x3500)                   # cmp/eq  r0, r5
-    BR(0x8B00, 8, 'not_space')  # bf      not_space
-    L('space')
-    MOVW_LIT(2, 0x057D)         # mov.w   .L_blank, r2      ; 0x0000057D
-    W(0x2622)                   # mov.l   r2, @r6
-    MOVW_LIT(1, 0x0100)         # mov.w   .L_0100, r1
-    W(0x361C)                   # add     r1, r6
-    BR(0xA000, 12, 'advance')   # bra     advance
-    W(0x2622)                   # [delay] mov.l r2, @r6
-
-    # 3. Glyph cache scan at 0x0608D774 (64 x u16, stepped by 2)
-    L('not_space')
+    # 2. Glyph cache scan at 0x0608D774 (64 x u16, stepped by 2).
+    #    Space (0x20) and 0x00 expand to all-zero transparent tiles via the font table,
+    #    avoiding vanilla's 0x057D tile constant which is non-blank on the tutorial tileset.
     W(0xE050)                   # mov     #0x50, r0
     W(0x034D)                   # mov.w   @(r0, r4), r3     ; count (0, 2, 4, ...)
     W(0x633D)                   # extu.w  r3, r3
@@ -192,7 +179,7 @@ def assemble_text_put(base_pc=RAM_BASE + TEXT_PUT):
     BR(0x8F00, 8, 'row')        # bf/s    row
     W(0x7302)                   # [delay] add #2, r3
 
-    # 5. Write 2 vertical nametable entries (tile, tile+1) and advance cursor X += 1
+    # 4. Write 2 vertical nametable entries (tile, tile+1) and advance cursor X += 1
     L('draw_nt')
     W(0xE06A)                   # mov     #0x6A, r0
     W(0x034D)                   # mov.w   @(r0, r4), r3
@@ -203,7 +190,6 @@ def assemble_text_put(base_pc=RAM_BASE + TEXT_PUT):
     MOVW_LIT(1, 0x0100)         # mov.w   .L_0100, r1
     W(0x361C)                   # add     r1, r6
     W(0x2632)                   # mov.l   r3, @r6           ; bottom cell
-    L('advance')
     W(0x854C)                   # mov.w   @(0x18, r4), r0
     W(0x301C)                   # add     r1, r0            ; cursor += 0x0100 (X += 1)
     W(0x000B)                   # rts
@@ -253,7 +239,7 @@ def _encode_saturn_tut_page(lines):
         assert len(line) <= 18, f'tutorial line > 18 chars: {line!r}'
         out += [0xFF02, text.TUT_FIRST + text.TUT_STEP * row]
         codes = text.encode_line(line)
-        used.update(c for c in codes if c != 0x20)
+        used.update(codes)
         out += codes
     assert len(used) <= 64, f'tutorial page uses {len(used)} unique glyphs (max 64)'
     out.append(0xFFFF)
