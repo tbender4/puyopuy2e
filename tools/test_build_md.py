@@ -22,7 +22,7 @@ if not os.path.exists(ROM):
 orig = open(ROM, 'rb').read()
 assert len(orig) == 0x200000 and (zlib.crc32(orig) & 0xffffffff) == 0x25b7b2aa
 
-results = {}
+EXPECTED = {'original': 0x6bfa3229, 'no-red-puyos': 0x34d4d1e1, 'with-red-puyos': 0x96b67051}
 for mode in logo.MODES:
     out = bytes(md_build.build(orig, mode))
     assert len(out) == len(orig)
@@ -38,8 +38,7 @@ for mode in logo.MODES:
             assert out[tbl:tbl + 194] == orig[tbl:tbl + 194], 'original mode touched logo table'
         assert out[md_build.LOGO_TILES:md_build.LOGO_TILES + 4089] == orig[md_build.LOGO_TILES:md_build.LOGO_TILES + 4089]
     crc = zlib.crc32(out) & 0xffffffff
-    results[mode] = crc
+    assert crc == EXPECTED[mode], '%s: CRC32 %08x != expected %08x' % (mode, crc, EXPECTED[mode])
     print('PASS %-15s CRC32=%08x checksum=%04x' % (mode, crc, hdr_csum))
 
-assert len(set(results.values())) == len(logo.MODES), 'logo modes did not produce distinct ROMs'
 print('All %d Mega Drive builds passed (stdlib-only).' % len(logo.MODES))
