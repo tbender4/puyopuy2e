@@ -1,0 +1,82 @@
+name: Build and Publish IPS Patches
+
+# SECURITY: Never add pull_request or pull_request_target triggers while using a
+# self-hosted runner on a public repository. Only trusted pushes to main and manual
+# workflow_dispatch runs execute on the VPS.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'README*.md'
+      - 'docs/**'
+      - 'tools/test_*.py'
+      - '.gitignore'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (leave empty for rYYYYMMDD-<sha>)'
+        default: ''
+      draft:
+        description: 'Publish as draft release'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-ips
+  cancel-in-progress: false
+
+jobs:
+  build-ips:
+    # Set repo variable ROM_DIR (e.g. /srv/puyopuy2e-roms) in Settings -> Actions -> Variables to enable
+    if: vars.ROM_DIR != ''
+    runs-on: [self-hosted, linux]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run IPS unit tests
+        run: python3 tools/test_ips.py
+
+      - name: Build and verify IPS patches
+        env:
+          ROM_DIR: ${{ vars.ROM_DIR }}
+        run: |
+          set -euo pipefail
+          if [ ! -d "$ROM_DIR" ]; then
+            echo "Base ROM directory not found: $ROM_DIR" >&2
+            exit 1
+          fi
+          rm -rf dist
+          python3 make_ips.py --roms-dir "$ROM_DIR" --out dist
+
+      - name: Publish GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_DRAFT: ${{ inputs.draft }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${GITHUB_SHA::7}"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+          else
+            COMMIT_DATE="$(TZ=UTC0 git show -s --format=%cd --date=format-local:%Y%m%d "$GITHUB_SHA")"
+            TAG="r${COMMIT_DATE}-${SHORT_SHA}"
+          fi
+
+          set --
+          if [ "$INPUT_DRAFT" = "true" ]; then
+            set -- --draft
+          fi
+
+          python3 tools/release.py \
+            --dir dist \
+            --tag "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            "$@"

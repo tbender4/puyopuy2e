@@ -2,3 +2,4 @@
 !assets/*.zip
 __pycache__/
 *.o
+dist/
