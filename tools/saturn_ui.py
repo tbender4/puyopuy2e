@@ -77,14 +77,22 @@ def patch_vdp2_screen(tiles, tmap, map_w, map_h, erase_rects, lines, *, fg=15, o
 
     free_pool = [t for t in range(1, orig_tiles) if t not in keep]
     dedup = {bytes(32): 0}
+    occ = {(col + tx, row + ty) for col, row, txt in lines for ty in range(2) for tx in range(len(txt))}
 
     for col, row, txt in lines:
         assert 0 <= col and col + len(txt) <= map_w and 0 <= row and row + 2 <= map_h, (
             f'line {txt!r} out of bounds at ({col},{row}) in {map_w}x{map_h}'
         )
-        img = _render_line_img(txt, len(txt), fg=fg, outline=outline)
+        # Expand canvas by 1 trailing cell when available so x_shift=1 keeps full 1px left & right outlines
+        pad = 1 if (
+            outline is not None and col + len(txt) < map_w and
+            (col + len(txt), row) in erased and (col + len(txt), row + 1) in erased and
+            (col + len(txt), row) not in occ and (col + len(txt), row + 1) not in occ
+        ) else 0
+        w_cells = len(txt) + pad
+        img = _render_line_img(txt, w_cells, fg=fg, outline=outline)
         for ty in range(2):
-            for tx in range(len(txt)):
+            for tx in range(w_cells):
                 assert (col + tx, row + ty) in erased, (
                     f'line {txt!r} writes outside erase_rects at ({col+tx},{row+ty})'
                 )
@@ -274,7 +282,7 @@ HPUYODT_SCREENS = (
     # Rule Load confirm box (preserves border + YES/NO at r12..13; dynamic rule# at (6,6,1,2))
     (39, 40, 40, 16, 1, [(4, 0, 6, 2), (4, 3, 32, 8)], [
         (5, 0,  'LOAD'),
-        (4, 3,  'Erase current rule and load Rule'),
+        (5, 3,  'Erase current rule & load Rule'),
         (5, 6,  '#'),
         (7, 6,  '.'),
         (13, 9, 'Are you sure?'),
@@ -335,51 +343,110 @@ def _stamp_card(img, sprite, y0):
 
 def _patch_difficulty_cards(tiles, tmap):
     """Translate Japanese text inside Practice (6,7) and Normal (16,7) art cards; keep iconic Tsuu kanji."""
-    # 1. Practice card: clear kana above Arle/Carbuncle (preserving Arle from arle_left[y]..54) & draw PRACTICE
+    # 1. Practice card: remove 'れんしゅう' while preserving Arle's full hair/ponytail silhouette & solid outlines
     prac = gfx.block_pixels(tiles, tmap, (7 * 40 + 6) * 2, 8, 8, 40)
-    arle_left = {20: 47, 21: 44, 22: 42, 23: 40, 24: 37, 25: 36, 26: 35, 27: 32, 28: 30, 29: 30, 30: 25, 31: 25, 32: 25}
+    prac_keep = {
+        20: (48, 51), 21: (44, 53), 22: (42, 54), 23: (41, 54), 24: (39, 54),
+        25: (38, 55), 26: (36, 55), 27: (32, 55), 28: (30, 55), 29: (30, 55),
+        30: (29, 55), 31: (29, 56), 32: (28, 57),
+    }
     for y in range(3, 33):
-        for x in range(3, arle_left.get(y, 61)):
-            prac[y][x] = 0
-        if 20 <= y <= 29:
-            for x in range(53 if y <= 21 else 55, 61):
+        lo, hi = prac_keep.get(y, (61, 0))
+        for x in range(3, 61):
+            if x < lo or x > hi:
                 prac[y][x] = 0
-    _stamp_card(prac, _render_card_word('PRACTICE', 6, 14, 1, (9, 9, 5, 5, 5, 4, 4)), 4)
+    # Restore bold continuous black outline around bangs, upper-left crown, and ponytail right edge
+    for x, y, v in (
+        (41, 22, 1), (40, 23, 1), (41, 23, 1),
+        (38, 24, 1), (39, 24, 1), (40, 24, 1), (41, 24, 2),
+        (36, 25, 1), (37, 25, 1), (38, 25, 1), (39, 25, 2),
+        (32, 26, 1), (33, 26, 1), (34, 26, 1), (35, 26, 1), (36, 26, 1), (37, 26, 2), (38, 26, 4),
+        (30, 27, 1), (31, 27, 1), (32, 27, 1), (33, 27, 2), (34, 27, 7),
+        (29, 28, 1), (29, 29, 1),
+        (52, 20, 1), (53, 21, 1), (54, 21, 1), (54, 22, 1), (54, 23, 1), (54, 24, 1),
+        (55, 25, 1), (55, 26, 1), (55, 27, 1), (55, 28, 1), (55, 29, 1),
+    ):
+        prac[y][x] = v
+    _stamp_card(prac, _render_card_word('PRACTICE', 6, 13, 1, (9, 9, 5, 5, 5, 4, 4)), 4)
     gfx.replace_block(tiles, tmap, (7 * 40 + 6) * 2, 8, 8, prac, row_stride=40, blank=0)
 
-    # 2. Normal card: restore blue sky/clouds behind kana (preserving Tower & Arle) & draw NORMAL
+    # 2. Normal card: restore sky/clouds behind 'ノーマル', preserving full Tower (incl. left wall) & clean Arle hair
     norm = gfx.block_pixels(tiles, tmap, (7 * 40 + 16) * 2, 8, 8, 40)
 
     def _sky(x, y):
-        if y <= 5:
+        if y <= 4:
             return 3
-        if y <= 7:
-            return 6 if (6 <= x <= 14 or x >= 55) else 3
-        if y <= 14:
+        if y == 5:
+            return 6 if 9 <= x <= 12 else 3
+        if y == 6:
+            return 11 if 8 <= x <= 14 else (6 if 5 <= x <= 17 else 3)
+        if y == 7:
+            return (11 if 6 <= x <= 15 else 6) if 5 <= x <= 16 else (6 if x >= 59 else 3)
+        if y == 8:
+            if 5 <= x <= 19:
+                return 15 if 8 <= x <= 16 else (11 if 6 <= x <= 18 else 6)
+            return 11 if x >= 58 else (6 if x >= 56 else 3)
+        if y == 9:
+            if x <= 21:
+                return 15 if 4 <= x <= 18 else (11 if x <= 20 else 6)
+            return 15 if x >= 56 else (11 if x >= 54 else (6 if x >= 52 else 3))
+        if y == 10:
+            if x <= 21:
+                return 15 if x <= 20 else 11
+            return 15 if x >= 54 else (11 if x >= 52 else (6 if x >= 50 else 3))
+        if y == 11:
+            if x <= 21:
+                return 15 if x <= 18 else (11 if x <= 19 else (6 if x <= 20 else 3))
+            return 15 if x >= 53 else (11 if x >= 51 else 3)
+        if y == 12:
+            if x <= 19:
+                return 15 if 4 <= x <= 16 else (11 if x <= 17 else (6 if x <= 18 else 3))
+            return 15 if x >= 52 else (11 if x >= 51 else 3)
+        if y == 13:
             if x <= 17:
-                return 15 if 9 <= y <= 13 and x <= 15 else 11
-            if x >= 49:
-                return 15 if 9 <= y <= 13 and x >= 52 else 11
-            return 3
+                return 15 if 4 <= x <= 15 else (11 if x <= 16 else 3)
+            return 15 if x >= 56 else (11 if x >= 54 else (6 if x >= 51 else 3))
+        if y == 14:
+            if x <= 16:
+                return 15 if x <= 15 else 11
+            return 11 if x >= 57 else 3
         if y == 15:
-            return 11 if (x <= 14 or x >= 54) else 3
+            if x <= 14:
+                return 11 if x <= 13 else 6
+            return 11 if 58 <= x <= 59 else (6 if x >= 57 else 3)
         if y == 16:
-            return 6 if (x <= 11 or x >= 56) else 3
+            return 6 if (x <= 10 or x >= 58) else 3
+        if y == 17:
+            return 6 if x <= 5 else 3
         return 3
 
-    def _keep(x, y):
-        return (
-            (5 <= y <= 14 and 23 <= x <= 35) or (15 <= y <= 24 and 19 <= x <= 39) or
-            (25 <= y <= 34 and 15 <= x <= 41) or (22 <= y <= 26 and 41 <= x <= 51) or
-            (y == 27 and 41 <= x <= 53) or (28 <= y <= 34 and 36 <= x <= 55)
-        )
-
-    for y in range(3, 35):
+    tower_x = {
+        5: (25, 31), 6: (23, 33), 7: (23, 33), 8: (23, 33), 9: (22, 34),
+        10: (22, 34), 11: (22, 33), 12: (22, 34), 13: (22, 34), 14: (22, 34),
+        15: (21, 35), 16: (20, 36), 17: (20, 36),
+        **{y: (19, 37) for y in range(18, 26)},
+        26: (18, 36), 27: (15, 36),
+        **{y: (13, 35) for y in range(28, 36)},
+    }
+    arle_x = {
+        22: (41, 46), 23: (40, 47), 24: (39, 48), 25: (37, 51),
+        26: (36, 52), **{y: (35, 53) for y in range(27, 32)},
+        **{y: (35, 54) for y in range(32, 36)},
+    }
+    for y in range(3, 36):
+        tlo, thi = tower_x.get(y, (99, -1))
+        alo, ahi = arle_x.get(y, (99, -1))
         for x in range(3, 61):
-            v = norm[y][x]
-            if v == 12 or (not _keep(x, y) and (v in (1, 4, 7, 9) or ((y <= 8 or y >= 15) and v == 15))):
+            if not (tlo <= x <= thi or alo <= x <= ahi):
                 norm[y][x] = _sky(x, y)
-    _stamp_card(norm, _render_card_word('NORMAL', 8, 12, 1, (15, 12, 12, 12, 9, 9)), 3)
+    # Restore crisp black outlines around both hair puffs & right hair edge (tapered into y=36..39)
+    for x, y in (
+        (38, 24), (49, 24), (51, 25),
+        (54, 29), (54, 30), (54, 31),
+        (55, 32), (55, 33), (55, 34), (55, 35), (56, 35),
+    ):
+        norm[y][x] = 1
+    _stamp_card(norm, _render_card_word('NORMAL', 8, 10, 1, (15, 12, 12, 12, 9, 9)), 3)
     gfx.replace_block(tiles, tmap, (7 * 40 + 16) * 2, 8, 8, norm, row_stride=40, blank=0)
 
 
