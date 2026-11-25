@@ -80,12 +80,15 @@ def test_git_changelog():
         head, prev, commits = release.git_changelog(td)
         assert head == 'Add Mega Drive IPS patches'
         assert prev == 'r20261124-0000001'
-        assert [s for _, s in commits] == ['Add Mega Drive IPS patches', 'Fix Nomi icon arrow']
+        assert commits == ['Add Mega Drive IPS patches', 'Fix Nomi icon arrow']
 
         notes = release.release_notes(
             repo='me/repo', tag='r20261124-0000002', prev_tag=prev, commits=commits,
         )
-        assert '### Changes' in notes and '- Fix Nomi icon arrow (' in notes
+        assert '### Changes\n- Add Mega Drive IPS patches\n- Fix Nomi icon arrow' in notes
+        assert '### Base ROMs required\n\n| Platform |' in notes
+        assert '### Auto-patcher' in notes and '#### Windows (PowerShell)' in notes and '#### Linux / macOS' in notes
+        assert '### GUI patcher' in notes and 'RomPatcher.js' in notes and 'Lunar IPS' not in notes
         assert 'https://github.com/me/repo/compare/r20261124-0000001...r20261124-0000002' in notes
     print('PASS git_changelog + release notes')
 

@@ -25,40 +25,59 @@ def _git(cwd, *args):
 
 
 def git_changelog(cwd=ROOT):
-    """Return (head_subject, prev_tag, [(short_sha, subject), ...]) since the previous git tag."""
+    """Return (head_subject, prev_tag, [subject, ...]) since the previous git tag."""
     head = _git(cwd, 'log', '-1', '--format=%s', 'HEAD')
     prev_tag = _git(cwd, 'describe', '--tags', '--abbrev=0', 'HEAD^')
     rev_range = f'{prev_tag}..HEAD' if prev_tag else 'HEAD'
-    log_args = ['log', '--no-merges', '--format=%h\t%s']
+    log_args = ['log', '--no-merges', '--format=%s']
     if not prev_tag:
         log_args += ['-n', '1']
     raw = _git(cwd, *log_args, rev_range)
     if not raw:
-        raw = _git(cwd, 'log', '-n', '1', '--format=%h\t%s', 'HEAD')
-    commits = [tuple(line.split('\t', 1)) for line in raw.splitlines() if '\t' in line]
+        raw = _git(cwd, 'log', '-n', '1', '--format=%s', 'HEAD')
+    commits = [line for line in raw.splitlines() if line]
     return head, prev_tag, commits
 
 
 def release_notes(repo=None, tag=None, prev_tag='', commits=()):
     """Format GitHub Release markdown from git commits and base ROM requirements."""
-    chips = ', '.join(f'`{name}` CRC32 `{crc:08x}`' for name, crc in (*romset.PROGRAM, romset.SOUND))
     lines = []
     if commits:
         lines.append('### Changes')
-        for sha, subj in commits:
-            lines.append(f'- {subj} (`{sha}`)')
+        for subj in commits:
+            lines.append(f'- {subj}')
         if repo and prev_tag and tag:
             lines += ['', f'**Full Changelog:** https://github.com/{repo}/compare/{prev_tag}...{tag}']
         lines.append('')
     lines += [
         '### Base ROMs required',
-        f'- **Mega Drive:** `{make_puyopuy2e_md.ORIG_NAME}` (2,097,152 bytes, CRC32 `{make_puyopuy2e_md.ORIG_CRC:08x}`)',
-        f'- **Arcade (Sega C2):** `puyopuy2.zip` ({chips})',
         '',
-        '### How to patch',
-        r'- **Auto-patcher (Windows):** `powershell -ExecutionPolicy Bypass -File .\patch.ps1 <base_rom> <patch.ips or arcade-ips.zip>` (add `-Mame` for upstream MAME `epr-*` names)',
-        '- **Auto-patcher (Linux/macOS):** `./patch.sh <base_rom> <patch.ips or arcade-ips.zip>` (add `--mame` for upstream MAME `epr-*` names)',
-        '- **GUI patchers:** Lunar IPS, Floating IPS (Flips), or [RomPatcher.js](https://www.marcrobledo.com/RomPatcher.js/) (see `README.txt` inside the arcade zip for manual steps).',
+        '| Platform | File | Size | CRC32 |',
+        '|---|---|---|---|',
+        f'| Mega Drive | `{make_puyopuy2e_md.ORIG_NAME}` | {make_puyopuy2e_md.ORIG_SIZE:,} | `{make_puyopuy2e_md.ORIG_CRC:08x}` |',
+    ]
+    for name, crc in romset.PROGRAM:
+        lines.append(f'| Arcade (`puyopuy2.zip`) | `{name}` | 524,288 | `{crc:08x}` |')
+    snd_name, snd_crc = romset.SOUND
+    lines += [
+        f'| Arcade (`puyopuy2.zip`) | `{snd_name}` (unchanged) | 524,288 | `{snd_crc:08x}` |',
+        '',
+        '### Auto-patcher',
+        '',
+        '#### Windows (PowerShell)',
+        '```powershell',
+        r'powershell -ExecutionPolicy Bypass -File .\patch.ps1 <base_rom> <patch.ips or arcade-ips.zip>',
+        '```',
+        'Add `-Mame` for upstream MAME (`epr-*` filenames).',
+        '',
+        '#### Linux / macOS',
+        '```sh',
+        './patch.sh <base_rom> <patch.ips or arcade-ips.zip>',
+        '```',
+        'Add `--mame` for upstream MAME (`epr-*` filenames).',
+        '',
+        '### GUI patcher',
+        'Patch in the browser with [RomPatcher.js](https://www.marcrobledo.com/RomPatcher.js/) (see `README.txt` inside the arcade zip for manual steps).',
     ]
     return '\n'.join(lines)
 
