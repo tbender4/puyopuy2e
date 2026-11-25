@@ -14,7 +14,7 @@ class BlockPIL:
 
 
 sys.meta_path.insert(0, BlockPIL())
-import logo, md_build  # noqa: E402
+import logo, lz, md_build  # noqa: E402
 
 ROM = os.path.join(ROOT, 'Puyo Puyo 2 (Japan) (v1.1).md')
 if not os.path.exists(ROM):
@@ -29,6 +29,10 @@ for mode in logo.MODES:
     hdr_csum = struct.unpack('>H', out[0x18e:0x190])[0]
     calc_csum = sum(struct.unpack('>%dH' % ((len(out) - 0x200) // 2), out[0x200:])) & 0xffff
     assert hdr_csum == calc_csum, '%s: checksum mismatch %04x != %04x' % (mode, hdr_csum, calc_csum)
+    nomi_map, _ = lz.decompress(out, 0xa602d)
+    nomi_tiles, _ = lz.decompress(out, 0xa5ce6)
+    bg_tile = nomi_map[256 + 33]
+    assert nomi_tiles[bg_tile * 32:(bg_tile + 1) * 32] == b'\x00' * 32, 'Nomi bg tile non-blank'
     if mode == 'original':
         for tbl in md_build.LOGO_TABLES:
             assert out[tbl:tbl + 194] == orig[tbl:tbl + 194], 'original mode touched logo table'
