@@ -31,18 +31,20 @@ def _font6():
     return font.load_bdf(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'font', 'spleen-6x12.bdf'))
 
 
-def _small_text(s, colour=1):
-    """columns of s in Spleen 6x12 (12 rows), glyphs trimmed to their ink + 1 px, spaces 3 px"""
+def _small_text(s, colour=1, tall=False):
+    """columns of s in Spleen 6x12 (12 rows; tall: row 5 doubled, 13 rows), glyphs trimmed to
+    their ink + 1 px, spaces 3 px"""
     cols = []
     for ch in s:
         if ch == ' ':
-            cols += [[0] * 12] * 3
+            cols += [[0] * (13 if tall else 12)] * 3
             continue
         rows = _font6()[ord(ch)]
+        rows = rows[:6] + rows[5:] if tall else rows
         ink = [c for c in range(8) if any(r >> (7 - c) & 1 for r in rows)]
         for c in range(ink[0], ink[-1] + 1):
-            cols.append([colour if rows[y] >> (7 - c) & 1 else 0 for y in range(12)])
-        cols.append([0] * 12)
+            cols.append([colour if rows[y] >> (7 - c) & 1 else 0 for y in range(len(rows))])
+        cols.append([0] * len(rows))
     return cols[:-1]
 
 
@@ -150,6 +152,9 @@ CAPTIONS = {9: {30: "Why would you say something like that?! It's terrible! Just
                 31: "Sorry, but it's the Puyo Under- world with you!"}}
 # where the Japanese text sat in each strip: (centre x, centre y)
 CAPTION_CENTRE = {30: (26, 95), 31: (22, 112)}
+# caption 31's lines already touch its sprite's left edge; the sprite's screen position comes from
+# the skit script (widening it grows it to the right), so moving it further left needs a script edit
+CAPTION_WIDTH = {}
 # script entry 8 shows caption 30 for 0x78 frames, then nothing for about 117 frames before
 # caption 31: hold it the whole time (English takes longer to read)
 CAPTION_HOLD = (8, bytes.fromhex('01091e7800'), bytes.fromhex('01091eee00'))
@@ -185,10 +190,18 @@ def _caption(w, h, text, fill, edge, centre):
 def apply_captions(ents):
     for entry, caps in CAPTIONS.items():
         table, pixels = ga.sprites_parse(ents[entry])
+        b = ents[entry]
         for k, text in caps.items():
             _, w, h, addr = table[k]
-            _sprite_put(pixels, addr, _caption(w, h, text, 7, 8, CAPTION_CENTRE[k]))   # white, black edge
-        ents[entry] = ga.sprites_pack(ents[entry], pixels)
+            W = CAPTION_WIDTH.get(k, w)
+            img = _caption(W, h, text, 7, 8, CAPTION_CENTRE[k])     # white, black edge
+            if W == w:
+                _sprite_put(pixels, addr, img)
+            else:
+                data = bytearray(W * h // 2)
+                _sprite_put(data, 0, img)
+                b = ga.sprites_resize(b, pixels, k, W, h, data)
+        ents[entry] = ga.sprites_pack(b, pixels)
         assert len(ents[entry]) <= SLOT, 'PUYOSHOW %d: %d bytes' % (entry, len(ents[entry]))
     entry, old, new = CAPTION_HOLD
     assert ents[entry].count(old) == 1
@@ -221,15 +234,16 @@ def apply_aids(ents):
     for y in range(146, h * 8):                 # the Japanese text: rows 147-201
         img[y] = [paper] * (w * 8)
     # as the Japanese: the slogan (rows 147-165) centred on x 157, the three lines a size smaller
-    # (Spleen 6x12, capitals 8 rows) centred on 172/184/195, the bullet block centred under it
+    # (Spleen 6x12 a row taller, capitals 9 rows) centred on 172/184/195, ending at x 230 as the
+    # Japanese does, 10 px before the bar under the logo
     slogan = _text_mask(AIDS_TEXT[0], 1)
     x0 = 157 - len(slogan[0]) // 2
     for y, row in enumerate(slogan):
         for x, v in enumerate(row):
             if v:
                 img[150 + y][x0 + x] = ink
-    lines = [_small_text(t) for t in AIDS_TEXT[1]]
-    left = 157 - (9 + max(map(len, lines))) // 2          # bullet 5 px + 4 px gap, then the text
+    lines = [_small_text(t, tall=True) for t in AIDS_TEXT[1]]
+    left = 230 - (9 + max(map(len, lines)))     # bullet 5 px + 4 px gap; ends at x 230 like the Japanese
     for cols, centre in zip(lines, (172, 184, 195)):
         for y in range(5):                      # the bullet, a 5x5 disc
             for x in range(5):
@@ -238,7 +252,7 @@ def apply_aids(ents):
         for x, col in enumerate(cols):
             for y, v in enumerate(col):
                 if v:
-                    img[centre - 5 + y][left + 9 + x] = ink    # capitals on glyph rows 1-8
+                    img[centre - 6 + y][left + 9 + x] = ink    # capitals on glyph rows 1-9
     _redraw_map(scene, 2, img, max(cells) & 0x007F0000, grow=256)   # the card is alone on screen
     blocks[0] = ga.scene_pack(scene)
     ents[AIDS] = ga.container_pack(head, blocks, order)
