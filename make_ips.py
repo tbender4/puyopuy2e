@@ -116,7 +116,10 @@ def build_saturn_bps(src_bin, out_dir, modes):
             saturn_iso.patch_iso(src_bin, built_bin, saturn_build.build(src_bin, logo_mode=mode))
             with open(built_bin, 'rb') as bf, mmap.mmap(bf.fileno(), 0, access=mmap.ACCESS_READ) as dst:
                 patch = bps.encode(src, dst)
-                crc = bps.header(patch)[3]
+            _, _, src_crc, crc = bps.header(patch)
+            if src_crc != make_puyopuy2e_saturn.ORIG_CRC:   # the CRC the release notes and patch.sh require
+                raise SystemExit(f'{src_bin}: not the expected Track 1 (CRC32 {src_crc:08x}, '
+                                 f'need {make_puyopuy2e_saturn.ORIG_CRC:08x})')
             with open(os.path.join(td, 'check.bin'), 'w+b') as cf:
                 bps.apply(src, patch, cf)   # raises unless the result matches the target CRC32
             fname = f'puyopuy2e-saturn-{mode}.bps'

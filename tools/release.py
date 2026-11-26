@@ -81,7 +81,7 @@ def release_notes(repo=None, tag=None, prev_tag='', commits=()):
         'Saturn: pass Track 1; the patcher writes the English Track 1 and a `.cue` that uses the original Track 2 (keep it in the same folder).',
         '',
         '### GUI patcher',
-        'Patch in the browser with [RomPatcher.js](https://www.marcrobledo.com/RomPatcher.js/) (see `README.txt` inside the arcade zip for manual steps). Floating IPS (Flips) also applies the Saturn `.bps`.',
+        'Patch in the browser with [RomPatcher.js](https://www.marcrobledo.com/RomPatcher.js/) (see `README.txt` inside the arcade zip for manual steps).',
     ]
     return '\n'.join(lines)
 

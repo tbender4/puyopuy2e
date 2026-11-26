@@ -4,7 +4,7 @@ Format: b'BPS1', varint source size, target size, metadata size (+ metadata), ac
 then CRC32 of source, target and of the patch itself. Each action is varint
 (length - 1) << 2 | kind: 0 SourceRead, 1 TargetRead (+ bytes), 2 SourceCopy and
 3 TargetCopy (+ signed relative offset). Only SourceRead/TargetRead are written or read:
-enough for in-place disc edits (Flips applies the rest).
+enough for in-place disc edits.
 
 Buffers can be bytes or mmap objects, so the 606 MB Saturn track is never copied in memory."""
 import struct, zlib
@@ -133,6 +133,6 @@ def apply(src, patch, out):
             emit(patch[i:i + n])
             i += n
         else:  # only SourceRead/TargetRead: what encode() writes
-            raise ValueError('unsupported BPS action (SourceCopy/TargetCopy): use Flips for third-party patches')
+            raise ValueError('unsupported BPS action (SourceCopy/TargetCopy): not a puyopuy2e patch')
     if pos != n_dst or (crc & 0xffffffff) != crc_dst:
         raise ValueError('BPS result does not match the target CRC32')

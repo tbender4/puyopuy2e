@@ -1,6 +1,6 @@
 #!/bin/sh
 # Apply Puyo Puyo 2 English patches (Mega Drive .ips, Arcade -ips.zip or Saturn .bps).
-# Pure POSIX sh + coreutils (uses flips if installed, otherwise od/awk/dd/tr; unzip/zip for arcade).
+# Pure POSIX sh + coreutils (od/awk/dd/tr; unzip/zip for arcade; perl or python3 for Saturn CRC32 checks).
 # Usage:
 #   ./patch.sh "Puyo Puyo 2 (Japan) (v1.1).md" puyopuy2e-md-no-red-puyos.ips [out.md]
 #   ./patch.sh puyopuy2.zip puyopuy2e-arcade-no-red-puyos-ips.zip [out.zip] [--mame]
@@ -50,10 +50,6 @@ apply_ips() {
     src="$1"
     ips="$2"
     dst="$3"
-    if command -v flips >/dev/null 2>&1; then
-        flips --apply "$ips" "$src" "$dst"
-        return
-    fi
     # Parse and validate IPS binary before touching dst: D off src_pos size | R off cnt oct | T len
     ops=$(od -An -tu1 -v "$ips" | awk '
         { for (i = 1; i <= NF; i++) b[n++] = $i + 0 }
@@ -115,17 +111,27 @@ apply_ips() {
     done
 }
 
+# CRC32 (zlib, as BPS uses) of stdin; prints nothing if neither perl nor python3 is installed
+crc32_of() {
+    if perl -MCompress::Zlib -e 1 2>/dev/null; then
+        perl -MCompress::Zlib -e 'binmode STDIN; $c = 0; $c = crc32($b, $c) while read(STDIN, $b, 1048576); print "$c\n"'
+    elif command -v python3 >/dev/null 2>&1; then
+        python3 -c 'import sys, zlib
+c = 0
+for b in iter(lambda: sys.stdin.buffer.read(1 << 20), b""): c = zlib.crc32(b, c)
+print(c)'
+    else
+        cat > /dev/null
+    fi
+}
+
 # Saturn Track 1 BPS (only SourceRead/TargetRead, what make_ips.py writes): copy the source,
-# write the new bytes in place. shortcut: without flips the patch/target CRC32s are not checked
-# (no POSIX CRC32); the base disc is checked with cksum instead.
+# write the new bytes in place, check the three CRC32s with perl or python3.
 apply_bps() {
     src="$1"
     bps="$2"
     dst="$3"
-    if command -v flips >/dev/null 2>&1; then
-        flips --apply "$bps" "$src" "$dst"
-        return
-    fi
+    label="$4"
     ops=$(od -An -tu1 -v "$bps" | awk '
         function varint(   d, s, x) {
             d = 0; s = 1
@@ -142,21 +148,44 @@ apply_bps() {
             }
             p = 4
             nsrc = varint(); ndst = varint(); m = varint(); p += m
-            if (nsrc != ndst) { print "BPS changes the file size (use flips)" > "/dev/stderr"; exit 1 }
+            if (nsrc != ndst) { print "BPS changes the file size (not a puyopuy2e patch)" > "/dev/stderr"; exit 1 }
             pos = 0
             while (p < n - 12) {
                 c = varint(); k = c % 4; len = int(c / 4) + 1
                 if (k == 1) { printf "D %d %d %d\n", pos, p, len; p += len }
-                else if (k != 0) { print "Unsupported BPS action (use flips)" > "/dev/stderr"; exit 1 }
+                else if (k != 0) { print "Unsupported BPS action (not a puyopuy2e patch)" > "/dev/stderr"; exit 1 }
                 pos += len
             }
             if (pos != ndst) { print "BPS actions do not cover the target" > "/dev/stderr"; exit 1 }
+            for (k = 0; k < 3; k++) {   # CRC32s of source, target, patch (little-endian)
+                q = n - 12 + 4 * k
+                printf "%s%.0f", (k ? " " : "C "),  # %.0f: mawk caps %d at 2^31-1
+                    b[q] + b[q+1]*256 + b[q+2]*65536 + b[q+3]*16777216
+            }
+            print ""
         }
     ')
+    crcs=$(printf '%s\n' "$ops" | tail -n 1)
+    crc_src=$(echo "$crcs" | awk '{print $2}')
+    crc_dst=$(echo "$crcs" | awk '{print $3}')
+    crc_bps=$(echo "$crcs" | awk '{print $4}')
+    if [ -z "$(echo | crc32_of)" ]; then
+        echo "perl and python3 not found: checking the base disc with cksum only" >&2
+        check_base "$src" "744555374 606498480" "$label"
+        crc_dst=""
+    elif [ "$(head -c $(($(wc -c < "$bps") - 4)) "$bps" | crc32_of)" != "$crc_bps" ]; then
+        echo "$bps is corrupt (patch CRC32 mismatch)" >&2; exit 1
+    elif [ "$(crc32_of < "$src")" != "$crc_src" ]; then
+        echo "$label is not the expected base disc (need CRC32 $(printf %08x "$crc_src"))" >&2; exit 1
+    fi
     cp -- "$src" "$dst"
-    printf '%s\n' "$ops" | while read -r op a b c; do
+    printf '%s\n' "$ops" | grep '^D' | while read -r op a b c; do
         dd if="$bps" of="$dst" bs=1 skip="$b" seek="$a" count="$c" conv=notrunc 2>/dev/null
     done
+    if [ -n "$crc_dst" ] && [ "$(crc32_of < "$dst")" != "$crc_dst" ]; then
+        rm -f -- "$dst"
+        echo "Patched disc does not match the BPS target CRC32" >&2; exit 1
+    fi
 }
 
 ROM_ABS=$(abs_path "$ROM")
@@ -173,11 +202,11 @@ case "$PATCH_ABS" in
             echo "Refusing to overwrite input ROM: $ROM_ABS" >&2
             exit 1
         fi
-        check_base "$ROM_ABS" "744555374 606498480" "$ROM (need PUYO_PUYO_TSU____ (Track 1).bin)"
-        apply_bps "$ROM_ABS" "$PATCH_ABS" "$OUT_ABS"
+        apply_bps "$ROM_ABS" "$PATCH_ABS" "$OUT_ABS" "$ROM (need PUYO_PUYO_TSU____ (Track 1).bin)"
         # .cue beside the new Track 1; Track 2 (audio) is unchanged and must sit in the same folder
         OUT_DIR=$(dirname -- "$OUT_ABS")
         T2=$(basename -- "$ROM_ABS" | sed 's/(Track 1)/(Track 2)/')
+        [ "$T2" != "$(basename -- "$ROM_ABS")" ] || T2='PUYO_PUYO_TSU____ (Track 2).bin'
         printf 'FILE "%s" BINARY\n  TRACK 01 MODE1/2352\n    INDEX 01 00:00:00\nFILE "%s" BINARY\n  TRACK 02 AUDIO\n    INDEX 00 00:00:00\n    INDEX 01 00:02:00\n' \
             "$(basename -- "$OUT_ABS")" "$T2" > "$OUT_DIR/Puyo Puyo 2 (English).cue"
         [ -f "$OUT_DIR/$T2" ] || echo "Copy $T2 next to $OUT_DIR/Puyo Puyo 2 (English).cue" >&2

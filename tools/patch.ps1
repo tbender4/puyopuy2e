@@ -64,20 +64,6 @@ function Assert-Base([byte[]]$Data, [string]$Sha1, [string]$Label) {
     if ($h -ne $Sha1) { throw "$Label is not the expected base ROM (SHA-1 $h, need $Sha1)" }
 }
 
-Add-Type -TypeDefinition @'
-public static class Crc32File {
-    public static uint Of(string path) {
-        uint[] t = new uint[256];
-        for (uint n = 0; n < 256; n++) { uint c = n; for (int k = 0; k < 8; k++) c = (c & 1) != 0 ? 0xEDB88320u ^ (c >> 1) : c >> 1; t[n] = c; }
-        uint crc = 0xFFFFFFFFu; byte[] buf = new byte[1 << 20]; int r;
-        using (var f = System.IO.File.OpenRead(path)) {
-            while ((r = f.Read(buf, 0, buf.Length)) > 0) for (int i = 0; i < r; i++) crc = t[(crc ^ buf[i]) & 0xFF] ^ (crc >> 8);
-        }
-        return ~crc;
-    }
-}
-'@
-
 function Read-Varint([byte[]]$P, [ref]$I) {
     [long]$data = 0; [long]$shift = 1
     while ($true) {
@@ -91,6 +77,19 @@ function Read-Varint([byte[]]$P, [ref]$I) {
 
 # Saturn Track 1 BPS (only SourceRead/TargetRead, what make_ips.py writes): copy the source, write the new bytes in place
 function Apply-Bps([string]$Src, [string]$PatchFile, [string]$Dst) {
+    Add-Type -TypeDefinition @'
+public static class Crc32File {
+    public static uint Of(string path) {
+        uint[] t = new uint[256];
+        for (uint n = 0; n < 256; n++) { uint c = n; for (int k = 0; k < 8; k++) c = (c & 1) != 0 ? 0xEDB88320u ^ (c >> 1) : c >> 1; t[n] = c; }
+        uint crc = 0xFFFFFFFFu; byte[] buf = new byte[1 << 20]; int r;
+        using (var f = System.IO.File.OpenRead(path)) {
+            while ((r = f.Read(buf, 0, buf.Length)) > 0) for (int i = 0; i < r; i++) crc = t[(crc ^ buf[i]) & 0xFF] ^ (crc >> 8);
+        }
+        return ~crc;
+    }
+}
+'@
     [byte[]]$p = [IO.File]::ReadAllBytes($PatchFile)
     if ($p.Length -lt 19 -or [Text.Encoding]::ASCII.GetString($p, 0, 4) -ne 'BPS1') { throw 'Invalid BPS header' }
     $i = 4
@@ -110,7 +109,7 @@ function Apply-Bps([string]$Src, [string]$PatchFile, [string]$Dst) {
             switch ($cmd -band 3) {
                 0 { }
                 1 { $f.Position = $pos; $f.Write($p, $i, $n); $i += $n }
-                default { throw 'Unsupported BPS action (use Flips for third-party patches)' }
+                default { throw 'Unsupported BPS action (not a puyopuy2e patch)' }
             }
             $pos += $n
         }
@@ -147,6 +146,7 @@ if ($patchPath.ToLower().EndsWith('.bps')) {
     Apply-Bps $romPath $patchPath $outFull
     # .cue beside the new Track 1; Track 2 (audio) is unchanged and must sit in the same folder
     $t2 = (Split-Path -Leaf $romPath) -replace '\(Track 1\)', '(Track 2)'
+    if ($t2 -eq (Split-Path -Leaf $romPath)) { $t2 = 'PUYO_PUYO_TSU____ (Track 2).bin' }
     $cue = "FILE `"$(Split-Path -Leaf $outFull)`" BINARY`n  TRACK 01 MODE1/2352`n    INDEX 01 00:00:00`n" +
            "FILE `"$t2`" BINARY`n  TRACK 02 AUDIO`n    INDEX 00 00:00:00`n    INDEX 01 00:02:00`n"
     $cuePath = Join-Path (Split-Path -Parent $outFull) 'Puyo Puyo 2 (English).cue'

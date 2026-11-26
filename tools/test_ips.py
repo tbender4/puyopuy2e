@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Stdlib-only regression tests for tools/ips.py, tools/bps.py, make_ips.py, and tools/release.py."""
-import io, json, os, subprocess, sys, tempfile, urllib.error, urllib.request, zipfile
+import io, json, os, shutil, subprocess, sys, tempfile, urllib.error, urllib.request, zipfile
 from pathlib import Path
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -49,6 +49,17 @@ def test_bps_edge_cases():
         except ValueError as e:
             assert msg in str(e), e
     print('PASS bps unit edge cases')
+
+    if shutil.which('sh'):     # the player-facing patch.sh: awk parser, dd writes, CRC32 checks, .cue
+        with tempfile.TemporaryDirectory() as td:
+            t = Path(td)
+            (t / 'src.bin').write_bytes(src)
+            (t / 'p.bps').write_bytes(bps.encode(src, bytes(dst)))
+            subprocess.run(['sh', os.path.join(ROOT, 'tools', 'patch.sh'), 'src.bin', 'p.bps', 'out.bin'],
+                           cwd=td, check=True, capture_output=True)
+            assert (t / 'out.bin').read_bytes() == bytes(dst)
+            assert 'FILE "PUYO_PUYO_TSU____ (Track 2).bin"' in (t / 'Puyo Puyo 2 (English).cue').read_text()
+        print('PASS patch.sh applies a BPS patch')
 
 
 def test_ips_edge_cases():
