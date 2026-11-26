@@ -55,6 +55,13 @@ function Apply-Ips([byte[]]$Src, [byte[]]$Ips) {
     throw 'Missing IPS EOF marker'
 }
 
+# Stop unless $Data is the exact base ROM the patches were made from
+function Assert-Base([byte[]]$Data, [string]$Sha1, [string]$Label) {
+    $sha = [Security.Cryptography.SHA1]::Create()
+    try { $h = -join ($sha.ComputeHash($Data) | ForEach-Object { $_.ToString('X2') }) } finally { $sha.Dispose() }
+    if ($h -ne $Sha1) { throw "$Label is not the expected base ROM (SHA-1 $h, need $Sha1)" }
+}
+
 function Read-ZipEntry([System.IO.Compression.ZipArchive]$Zip, [string]$Name) {
     $e = $Zip.Entries | Where-Object { $_.Name -ieq $Name } | Select-Object -First 1
     if (-not $e) { throw "Missing $Name inside archive" }
@@ -86,8 +93,12 @@ if ($patchPath.ToLower().EndsWith('.zip')) {
     $rz = [IO.Compression.ZipFile]::OpenRead($romPath)
     $pz = [IO.Compression.ZipFile]::OpenRead($patchPath)
     try {
-        $ev = Apply-Ips (Read-ZipEntry $rz 'epr-17241.ic32') (Read-ZipEntry $pz 'epr-17241.ic32.ips')
-        $od = Apply-Ips (Read-ZipEntry $rz 'epr-17240.ic31') (Read-ZipEntry $pz 'epr-17240.ic31.ips')
+        $evSrc = Read-ZipEntry $rz 'epr-17241.ic32'
+        $odSrc = Read-ZipEntry $rz 'epr-17240.ic31'
+        Assert-Base $evSrc '77FB0482FA35E615C0BED65F4D7F4DD89B241F23' "epr-17241.ic32 in $Rom"
+        Assert-Base $odSrc 'C2BDAD4B6184C11F81F2A5DB409CB4EA186205A7' "epr-17240.ic31 in $Rom"
+        $ev = Apply-Ips $evSrc (Read-ZipEntry $pz 'epr-17241.ic32.ips')
+        $od = Apply-Ips $odSrc (Read-ZipEntry $pz 'epr-17240.ic31.ips')
         $sn = Read-ZipEntry $rz 'epr-17239.ic4'
     } finally { $rz.Dispose(); $pz.Dispose() }
 
@@ -105,7 +116,9 @@ if ($patchPath.ToLower().EndsWith('.zip')) {
     Write-Host "Patched arcade set written to $outFull"
 } else {
     $outFull = & $resolveOut $Out 'Puyo Puyo 2 (English) (v1.1).md'
-    $patched = Apply-Ips ([IO.File]::ReadAllBytes($romPath)) ([IO.File]::ReadAllBytes($patchPath))
+    $src = [IO.File]::ReadAllBytes($romPath)
+    Assert-Base $src 'D9C0EDAADF66F215565A9DD4178313581FEC811C' "$Rom (need Puyo Puyo 2 (Japan) (v1.1))"
+    $patched = Apply-Ips $src ([IO.File]::ReadAllBytes($patchPath))
     [IO.File]::WriteAllBytes($outFull, $patched)
     Write-Host "Patched Mega Drive ROM written to $outFull ($($patched.Length) bytes)"
 }

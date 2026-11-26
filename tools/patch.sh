@@ -36,6 +36,15 @@ abs_path() {
     printf '%s/%s\n' "$d" "$base"
 }
 
+# Stop unless $1 is the exact base ROM the patches were made from (POSIX cksum: "crc size").
+check_base() {
+    got=$(cksum < "$1" | awk '{print $1" "$2}')
+    if [ "$got" != "$2" ]; then
+        echo "$3 is not the expected base ROM (cksum $got, need $2)" >&2
+        exit 1
+    fi
+}
+
 apply_ips() {
     src="$1"
     ips="$2"
@@ -96,7 +105,10 @@ apply_ips() {
                 fi
                 ;;
             T)
-                dd if=/dev/null of="$dst" bs=1 seek="$a" 2>/dev/null
+                # IPS truncation only shrinks (dd would also grow the file)
+                if [ "$a" -lt "$(wc -c < "$dst")" ]; then
+                    dd if=/dev/null of="$dst" bs=1 seek="$a" 2>/dev/null
+                fi
                 ;;
         esac
     done
@@ -131,6 +143,8 @@ case "$PATCH_ABS" in
         for f in epr-17241.ic32 epr-17240.ic31 epr-17239.ic4; do
             if [ ! -f "$TMP/rom/$f" ]; then echo "Missing $f inside $ROM" >&2; exit 1; fi
         done
+        check_base "$TMP/rom/epr-17241.ic32" "1172277925 524288" "epr-17241.ic32 in $ROM"
+        check_base "$TMP/rom/epr-17240.ic31" "3325161525 524288" "epr-17240.ic31 in $ROM"
         if [ "$MAME" -eq 1 ]; then
             EV_OUT="epr-17241.ic32"; OD_OUT="epr-17240.ic31"
         else
@@ -153,6 +167,7 @@ case "$PATCH_ABS" in
             echo "Refusing to overwrite input ROM: $ROM_ABS" >&2
             exit 1
         fi
+        check_base "$ROM_ABS" "453739695 2097152" "$ROM (need Puyo Puyo 2 (Japan) (v1.1))"
         apply_ips "$ROM_ABS" "$PATCH_ABS" "$OUT_ABS"
         echo "Patched Mega Drive ROM written to $OUT_ABS"
         ;;
