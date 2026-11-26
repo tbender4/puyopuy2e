@@ -28,7 +28,8 @@ def _arcade_readme(mode, even_crc, odd_crc):
         f'Quick auto-patch (using the included scripts):\n'
         f'  Windows:        powershell -ExecutionPolicy Bypass -File .\\patch.ps1 puyopuy2.zip puyopuy2e-arcade-{mode}-ips.zip\n'
         f'  Linux / macOS:  ./patch.sh puyopuy2.zip puyopuy2e-arcade-{mode}-ips.zip\n'
-        f'  (Add -Mame / --mame to keep epr-* filenames for upstream MAME.)\n\n'
+        f'  (Add -Mame / --mame to keep epr-* filenames for upstream MAME; this writes\n'
+        f'   puyopuy2-en.zip, which you rename to puyopuy2.zip in a separate ROM folder.)\n\n'
         f'Manual patching (Lunar IPS, Floating IPS / Flips, or RomPatcher.js):\n'
         f'  1. Extract puyopuy2.zip to a temporary folder.\n'
         f'  2. Apply {ev_name}.ips to {ev_name} -> CRC32 {even_crc:08x}\n'
@@ -73,6 +74,7 @@ def build_arcade_ips(src_zip, out_dir, modes):
             ):
                 zi = zipfile.ZipInfo(name, date_time=(2024, 1, 1, 0, 0, 0))
                 zi.compress_type = zipfile.ZIP_DEFLATED
+                zi.create_system = 3  # Unix, so unzip keeps patch.sh executable even when built on Windows
                 zi.external_attr = (0o100000 | mode_bits) << 16
                 z.writestr(zi, payload)
         print(f'verified {zname} (even={len(p_even)}B odd={len(p_odd)}B, CRCs {got[0]:08x}/{got[1]:08x})')
