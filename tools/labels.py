@@ -303,10 +303,12 @@ def apply_here(streams):
     m_box[r3:r3 + 5] = bytes([0x1f, 0x22, 0x23, 0x24, 0x25])
     # Bottom half of m_box (rows 8..15) reuses tile 0x0e (blank in JP "やったー!") as transparent
     # background fill; append a dedicated blank tile so "YAY!" does not fill Nomi's defeat panel.
-    blank = len(t_win) // gfx.TILE
-    t_win.extend(bytes(gfx.TILE))
-    for i in range(256, len(m_box)):
-        if m_box[i] == 0x0e:
+    # (the Saturn map fills with another tile, so nothing to remap there)
+    fill = [i for i in range(256, len(m_box)) if m_box[i] == 0x0e]
+    if fill:
+        blank = len(t_win) // gfx.TILE
+        t_win.extend(bytes(gfx.TILE))
+        for i in fill:
             m_box[i] = blank
     put_tiles(t_win, render("YAY!", 48, 16, 8, 7), sprite_order(10, 6, 2, 1))
     put_tiles(t_win, render("YAY!", 48, 16, 6, 5), sprite_order(22, 6, 2, 1))
