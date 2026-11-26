@@ -22,7 +22,7 @@ if not os.path.exists(ROM):
 orig = open(ROM, 'rb').read()
 assert len(orig) == 0x200000 and (zlib.crc32(orig) & 0xffffffff) == 0x25b7b2aa
 
-EXPECTED = {'original': 0x6bfa3229, 'no-red-puyos': 0x34d4d1e1, 'with-red-puyos': 0x96b67051}
+EXPECTED = {'original': 0x2cd0c00f, 'no-red-puyos': 0xe4ce2df6, 'with-red-puyos': 0x4b48767b}
 for mode in logo.MODES:
     out = bytes(md_build.build(orig, mode))
     assert len(out) == len(orig)

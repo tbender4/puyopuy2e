@@ -476,6 +476,7 @@ def build(src_bin, logo_mode=logo.DEFAULT_MODE):
     g8_chain[0xe00:0xf60] = saturn_arch.tiles_to_sprites(g8_chain[0xe00:0xf60], CHAIN_TAIL_SPECS)
     g8_ko_big[:] = saturn_arch.tiles_to_sprites(ko_big_tiles, KO_BIG_SPECS)
     f3_idle[0:128] = saturn_arch.tiles_to_vdp1(f3_idle[0:128], 4, 1)
+    f3_idle[0x0a * 32:0x1c * 32] = saturn_arch.tiles_to_sprites(f3_idle[0x0a * 32:0x1c * 32], [(4, 1), (2, 1)] * 3)
     f3_win[0:128] = saturn_arch.tiles_to_vdp1(f3_win[0:128], 4, 1)
     f3_win[10 * 32:22 * 32] = saturn_arch.tiles_to_sprites(f3_win[10 * 32:22 * 32], NOMI_YAY_SPECS)
     f3_win[22 * 32:34 * 32] = saturn_arch.tiles_to_sprites(f3_win[22 * 32:34 * 32], NOMI_YAY_SPECS)

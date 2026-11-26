@@ -151,6 +151,7 @@ TINY = {        # 3x5 capitals for Nomi's tiny "I'm here" icon and CHAIN
     'N': ["##.", "#.#", "#.#", "#.#", "#.#"],
     'M': ["#.#", "###", "###", "#.#", "#.#"],
     "'": ["#", "#", ".", ".", "."],
+    '!': ["#", "#", "#", ".", "#"],
 }
 
 
@@ -298,6 +299,11 @@ def apply_here(streams):
     strip32 = [[0] * 32 for _ in range(8)]
     _draw_tiny(strip32, "I'M HERE", 2, 0xa)
     put_tiles(t_idle, strip32, [[0x22, 0x23, 0x24, 0x25]])
+    # よろこんでる (two colour variants) and う゛っーー! (Nomi knocked out), 6 tiles each
+    for text, colour, first in (("HOORAY!", 6, 0x0a), ("HOORAY!", 0xa, 0x10), ("OUCH!", 9, 0x16)):
+        strip48 = [[0] * 48 for _ in range(8)]
+        _draw_tiny(strip48, text, 2, colour)
+        put_tiles(t_idle, strip48, [list(range(first, first + 6))])
     r3 = 3 * 32 + 13
     assert m_box[r3:r3 + 5] == bytearray([0x22, 0x22, 0x23, 0x24, 0x25])
     m_box[r3:r3 + 5] = bytes([0x1f, 0x22, 0x23, 0x24, 0x25])
