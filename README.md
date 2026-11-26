@@ -15,6 +15,9 @@ translation by J2e Translations (Skeleton-T, Mini Zombie, Sukiyapodes, ...).
 
 *`puyopuy2e`: the title (MAME) and a tutorial page (mame2003-plus core).*
 
+Also ported to the Mega Drive ([README_MD.md](README_MD.md)) and the Sega Saturn
+([README_SATURN.md](README_SATURN.md)).
+
 ## For dummies
 
 You need one file you already have from your MAME/RetroArch ROM collection:
