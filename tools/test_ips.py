@@ -6,13 +6,17 @@ from pathlib import Path
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, 'tools'))
 sys.path.insert(0, ROOT)
-import ips, logo, make_ips, make_puyopuy2e_md, release
 
 
 class BlockPIL:
     def find_spec(self, name, *args):
         if name == 'PIL' or name.startswith('PIL.'):
             raise ImportError('PIL blocked: IPS tools must stay stdlib-only')
+
+
+# installed before importing the tools so a top-level PIL import in them fails too
+sys.meta_path.insert(0, BlockPIL())
+import ips, logo, make_ips, make_puyopuy2e_md, release
 
 
 def test_ips_edge_cases():
@@ -194,7 +198,6 @@ def test_rom_ips():
 
 
 def main():
-    sys.meta_path.insert(0, BlockPIL())
     test_ips_edge_cases()
     test_git_changelog()
     test_publish_mock()

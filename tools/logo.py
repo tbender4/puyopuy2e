@@ -164,7 +164,7 @@ def apply(prog, streams, mode=DEFAULT_MODE, tables=TABLES):
 # Shared scrolling 'ぷよぷよ通' -> 'Puyo Puyo 2 通' Tower background wallpaper (Arcade & Mega Drive).
 # Stream 0x0c497d holds the 81 wallpaper tiles (2..82) contiguously at tiles 260..340 (base=258).
 WALLPAPER_TILES = 0x0c497d
-_PUYO_LUMA = {2: 30, 3: 40, 4: 49, 5: 59, 6: 69, 8: 77, 10: 119, 11: 142, 12: 169, 13: 208, 15: 231}
+_PUYO_LUMA = {2: 30, 3: 40, 4: 49, 5: 59, 6: 69, 8: 77, 9: 100, 10: 119, 11: 142, 12: 169, 13: 208, 15: 231}
 
 
 @functools.lru_cache(maxsize=None)
