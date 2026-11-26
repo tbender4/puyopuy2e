@@ -3,7 +3,7 @@
 Milestone C: translates all 23 H_PUYODT.BIN VDP2 menus/dialogs, dynamic Rule Editor hardness
 labels (H_PUYODT[0]), save-slot labels (H_PUYODT[77]/[79]), and Character Select START! banner
 (DEMO_G02[12..13]) with zero /0;1 edits and strict VDP2 VRAM tile-count preservation."""
-import functools, struct
+import functools, math, struct
 import font, gfx, labels
 
 _glyphs = functools.lru_cache(maxsize=None)(font.font)
@@ -499,16 +499,27 @@ def apply_demo_g02_start(tiles, tmap):
     m = [a + [0, 0] + b for a, b in zip(m_word, m_bang)]
     mw, mh = len(m[0]), len(m)
     img = [[0] * 96 for _ in range(40)]
-    x0, y0 = (96 - mw) // 2, (40 - mh) // 2
-    # Vertical gradient fill (12->11->10->9), dark inner edge (5), bright white bubble outline (15)
-    shades = (12, 11, 10, 9)
+    x0, y0 = (96 - mw) // 2 - 1, (40 - mh) // 2 - 1     # 1 px up-left to leave room for the shadow
+    # The game cycles colours 5..12 (each colour moves to the next index), so the index layout is the
+    # animation. As in the original (fitted to its pixels): arcs converging on the bottom middle, with
+    # distance squeezed 2.5x sideways, 3.5 px bands rising toward a flat core of index 12 (the wide
+    # pale base), plus 12 narrow streaks fanning out of the core, faded in just outside it.
+    ox, oy = x0 + mw * 0.52, y0 + mh * 0.83
     for y, row in enumerate(m):
-        c = shades[min(3, y * 4 // mh)]
         for x, v in enumerate(row):
             if v:
-                img[y0 + y][x0 + x] = c
-    img = labels.ring(img, 5, {9, 10, 11, 12})
-    img = labels.ring(img, 15, {5, 9, 10, 11, 12})
+                dx, dy = (x0 + x - ox) / 2.5, y0 + y - oy
+                d = math.hypot(dx, dy)
+                fade = min(1.0, max(0.0, (d - 10.5) / 7))
+                streak = 1.8 * fade * (max(0.0, math.cos(12 * math.atan2(dy, dx))) ** 5 * 2 - 0.5)
+                img[y0 + y][x0 + x] = 5 + int(min(7, max(0, 10 - d / 3.5 + streak)))
+    img = labels.ring(img, 14, set(range(5, 13)))       # dark outline (14), as on the original
+    shadow = [r[:] for r in img]                         # and a 1 px drop shadow down-right
+    for y in range(39):
+        for x in range(95):
+            if img[y][x] and not img[y + 1][x + 1]:
+                shadow[y + 1][x + 1] = 14
+    img = shadow
 
     pool = list(range(0x19, 0x50))  # 55 exclusive tiles (preserves bg 0x01..0x18 & portraits 0x50..0x19c)
     _pack_img(tiles, tmap, 0, 12, 5, img, pool, {bytes(32): 0})
