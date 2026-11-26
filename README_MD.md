@@ -1,36 +1,86 @@
-# Puyo Puyo 2 — Mega Drive / Genesis English Translation
+# Puyo Puyo 2: Mega Drive / Genesis English Translation
 
-Port of `puyopuy2e` (Sega System C2 arcade English translation) to the Sega Mega Drive
-release **`Puyo Puyo 2 (Japan) (v1.1).md`** (raw 2 MB binary dump, CRC32 `25b7b2aa`).
+Port of `puyopuy2e` to the Mega Drive release **Puyo Puyo 2** (Japan, v1.1).
+Besides everything shared with the arcade and [Saturn](README_SATURN.md) versions, the
+Mega Drive menus and screens, which exist only on this cartridge, are redrawn in English.
 
-## Build
+![the title in BizHawk](screenshots/md/title_en.png)
+![a character profile](screenshots/md/profile_en.png)
 
-Requires Python 3 standard library only (no Pillow or external tools):
+## Base ROM
 
+A raw 2 MB dump (no header):
+
+| File | Size | CRC32 |
+|---|---|---|
+| `Puyo Puyo 2 (Japan) (v1.1).md` | 2,097,152 | `25b7b2aa` |
+
+## Patch
+
+Each [release](https://github.com/tbender4/puyopuy2e/releases) has
+`puyopuy2e-md-no-red-puyos.ips` and a patcher for convenience.
+
+#### Linux/macOS
 ```sh
-python3 make_puyopuy2e_md.py "Puyo Puyo 2 (Japan) (v1.1).md"
+./patch.sh "Puyo Puyo 2 (Japan) (v1.1).md" puyopuy2e-md-no-red-puyos.ips
 ```
 
-Optional title logo mode (`--logo`, default `no-red-puyos`):
+#### Windows
+```powershell
+powershell -ExecutionPolicy Bypass -File .\patch.ps1 "Puyo Puyo 2 (Japan) (v1.1).md" puyopuy2e-md-no-red-puyos.ips
+```
 
-- `no-red-puyos` — English red `"Puyo Puyo"` + gold `2` + green `通` (red handakuten puyos culled)
-- `with-red-puyos` — English `"Puyo Puyo"` with cropped 3×2 red puyos over each `u`
-- `original` — original Japanese `ぷよぷよ通` title logo
+Both write `Puyo Puyo 2 (English) (v1.1).md` next to the original.
+
+An IPS-capable patcher works as well.
+
+## Build From Source
+
+A Python script is available:
+
+```sh
+python3 make_puyopuy2e_md.py ["Puyo Puyo 2 (Japan) (v1.1).md" | FOLDER] [OUT_ROM]
+```
+
+The default input is this folder and the default output `Puyo Puyo 2 (English) (v1.1).md`
+next to the input. `--logo` picks the title logo as for the other versions
+(`no-red-puyos` default, `with-red-puyos`, `original`).
 
 ## What is translated
 
-**Shared with the Sega C2 arcade port:**
-- 8×16 Spleen text engine (`0x0151cc`), page hooks (`0x110000`), all 58 character profiles and 12 attract tutorial pages (`0x017e6c..0x01937e`)
-- Title logo (`0x02836a`, `0x0285a6`, `0x0b751d`), tutorial titles (`0x092640`, `0x044ec8`), tutorial `ALL CLEAR` (`0x045503`)
-- Play HUD (`CHAIN`, `OFFSET`, `K.O.` big + small, `YAY!`), level select curry plates (`EXTRA MILD`..`EXTRA HOT`)
-- Tower (`PICK YOUR RIVAL`, Nomi `I'M HERE` icon + blown-up battle/profile sprites), Continue (`CONTINUE?`), Act Against AIDS (`COURAGE AND LOVE`)
+#### Shared with the arcade and Saturn versions
+- title logo
+- the 58 character profile pages and the 12 attract tutorial pages
+- gameplay HUD (`CHAIN`, `OFFSET`, `K.O.`, `YAY!`)
+- the tower (`PICK YOUR RIVAL`, Nomi's `I'M HERE`, `YAY!`, `HOORAY!` and `OUCH!`), `CONTINUE?`
+- level select (`EXTRA MILD` ... `EXTRA HOT`)
+- Act Against AIDS (`COURAGE AND LOVE`)
 
-**Mega Drive-exclusive screens & strings:**
-- Main Mode Select header (`CHOOSE A MODE!`) and all 3 animated Carbuncle mouths (`1 PLAYER / PUYO`, `2 PLAYER / PUYO`, `OPTIONS`)
-- In-game Pause (`PAUSE`, `0x0900be`) and P2 Join-In banner (`CHALLENGER!`, `0x08c8f9`)
-- 2P Special Rule Select header (`CHOOSE A RULE!`) and all 6 rule descriptions (`0x103a20`)
-- Rule Edit (`えでぃっとだよ`) menu, editor, and nuisance hardness labels (`NORMAL`, `HARD`, `HARD CAP`) (`0x091461`, `0x0177a6..0x017997`)
-- `GAME OPTION`, secret `BATTLE MODE`, and Ending Record romaji (`RULE SET`, `OFFSET`, `CHAIN LIMIT`, `WINS`, `MAX CHAIN`)
-- Mega Drive ROM header checksum (`0x00018e`) recomputed automatically
+#### Mega Drive only
+- mode select (`CHOOSE A MODE!` and the three Carbuncle mouths: `1 PLAYER PUYO`,
+  `2 PLAYER PUYO`, `OPTIONS`)
+- `PAUSE` and the 2P join-in banner (`CHALLENGER!`)
+- 2P rule select (`CHOOSE A RULE!`) and its six rule descriptions
+- Rule Edit menu and the rule editor (all settings and the nuisance hardness labels)
+- `GAME OPTION` and the ending record romaji (`RULE SET`, `OFFSET`, `CHAIN LIMIT`,
+  `MAX CHAIN`)
 
-*(Ending staff roll Japanese names in `0x1069fe` / `0x106efd` / `0x107476` are left untouched, matching the arcade translation.)*
+## Not translated
+
+- The Japanese names in the ending staff roll, as in the arcade translation
+
+## Screenshots
+
+| | Original | English |
+|---|---|---|
+| Title | ![](screenshots/md/title_jp.png) | ![](screenshots/md/title_en.png) |
+| Act Against AIDS | ![](screenshots/md/aids_jp.png) | ![](screenshots/md/aids_en.png) |
+| Mode select | ![](screenshots/md/mode_jp.png) | ![](screenshots/md/mode_en.png) |
+| Character profile | ![](screenshots/md/profile_jp.png) | ![](screenshots/md/profile_en.png) |
+| Continue | ![](screenshots/md/continue_jp.png) | ![](screenshots/md/continue_en.png) |
+| 2P rule select | ![](screenshots/md/rules_jp.png) | ![](screenshots/md/rules_en.png) |
+| Rule Edit menu | ![](screenshots/md/ruleedit_jp.png) | ![](screenshots/md/ruleedit_en.png) |
+| Rule editor | ![](screenshots/md/editor_jp.png) | ![](screenshots/md/editor_en.png) |
+| Options | ![](screenshots/md/options_jp.png) | ![](screenshots/md/options_en.png) |
+| Tutorial | ![](screenshots/md/tutorial_jp.png) | ![](screenshots/md/tutorial_en.png) |
+| Tutorial | ![](screenshots/md/tutorial2_jp.png) | ![](screenshots/md/tutorial2_en.png) |
