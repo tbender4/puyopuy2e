@@ -1,9 +1,10 @@
 #!/bin/sh
-# Apply Puyo Puyo 2 English IPS patches (Mega Drive .ips or Arcade -ips.zip).
+# Apply Puyo Puyo 2 English patches (Mega Drive .ips, Arcade -ips.zip or Saturn .bps).
 # Pure POSIX sh + coreutils (uses flips if installed, otherwise od/awk/dd/tr; unzip/zip for arcade).
 # Usage:
 #   ./patch.sh "Puyo Puyo 2 (Japan) (v1.1).md" puyopuy2e-md-no-red-puyos.ips [out.md]
 #   ./patch.sh puyopuy2.zip puyopuy2e-arcade-no-red-puyos-ips.zip [out.zip] [--mame]
+#   ./patch.sh "PUYO_PUYO_TSU____ (Track 1).bin" puyopuy2e-saturn-no-red-puyos.bps [out.bin]
 set -eu
 
 MAME=0
@@ -23,7 +24,7 @@ for arg in "$@"; do
 done
 
 if [ -z "$ROM" ] || [ -z "$PATCH" ]; then
-    echo "Usage: $0 <rom> <patch.ips|arcade-ips.zip> [out] [--mame]" >&2
+    echo "Usage: $0 <rom> <patch.ips|arcade-ips.zip|patch.bps> [out] [--mame]" >&2
     exit 2
 fi
 if [ ! -f "$ROM" ]; then echo "ROM not found: $ROM" >&2; exit 1; fi
@@ -114,11 +115,74 @@ apply_ips() {
     done
 }
 
+# Saturn Track 1 BPS (only SourceRead/TargetRead, what make_ips.py writes): copy the source,
+# write the new bytes in place. shortcut: without flips the patch/target CRC32s are not checked
+# (no POSIX CRC32); the base disc is checked with cksum instead.
+apply_bps() {
+    src="$1"
+    bps="$2"
+    dst="$3"
+    if command -v flips >/dev/null 2>&1; then
+        flips --apply "$bps" "$src" "$dst"
+        return
+    fi
+    ops=$(od -An -tu1 -v "$bps" | awk '
+        function varint(   d, s, x) {
+            d = 0; s = 1
+            while (1) {
+                x = b[p++]; d += (x % 128) * s
+                if (x >= 128) return d
+                s *= 128; d += s
+            }
+        }
+        { for (i = 1; i <= NF; i++) b[n++] = $i + 0 }
+        END {
+            if (n < 19 || b[0]!=66 || b[1]!=80 || b[2]!=83 || b[3]!=49) {
+                print "Invalid BPS header" > "/dev/stderr"; exit 1
+            }
+            p = 4
+            nsrc = varint(); ndst = varint(); m = varint(); p += m
+            if (nsrc != ndst) { print "BPS changes the file size (use flips)" > "/dev/stderr"; exit 1 }
+            pos = 0
+            while (p < n - 12) {
+                c = varint(); k = c % 4; len = int(c / 4) + 1
+                if (k == 1) { printf "D %d %d %d\n", pos, p, len; p += len }
+                else if (k != 0) { print "Unsupported BPS action (use flips)" > "/dev/stderr"; exit 1 }
+                pos += len
+            }
+            if (pos != ndst) { print "BPS actions do not cover the target" > "/dev/stderr"; exit 1 }
+        }
+    ')
+    cp -- "$src" "$dst"
+    printf '%s\n' "$ops" | while read -r op a b c; do
+        dd if="$bps" of="$dst" bs=1 skip="$b" seek="$a" count="$c" conv=notrunc 2>/dev/null
+    done
+}
+
 ROM_ABS=$(abs_path "$ROM")
 PATCH_ABS=$(abs_path "$PATCH")
 ROM_DIR=$(dirname -- "$ROM_ABS")
 
 case "$PATCH_ABS" in
+    *.[Bb][Pp][Ss])
+        if [ -z "$OUT" ]; then
+            OUT="$ROM_DIR/Puyo Puyo 2 (English) (Track 1).bin"
+        fi
+        OUT_ABS=$(abs_path "$OUT")
+        if [ "$OUT_ABS" = "$ROM_ABS" ]; then
+            echo "Refusing to overwrite input ROM: $ROM_ABS" >&2
+            exit 1
+        fi
+        check_base "$ROM_ABS" "744555374 606498480" "$ROM (need PUYO_PUYO_TSU____ (Track 1).bin)"
+        apply_bps "$ROM_ABS" "$PATCH_ABS" "$OUT_ABS"
+        # .cue beside the new Track 1; Track 2 (audio) is unchanged and must sit in the same folder
+        OUT_DIR=$(dirname -- "$OUT_ABS")
+        T2=$(basename -- "$ROM_ABS" | sed 's/(Track 1)/(Track 2)/')
+        printf 'FILE "%s" BINARY\n  TRACK 01 MODE1/2352\n    INDEX 01 00:00:00\nFILE "%s" BINARY\n  TRACK 02 AUDIO\n    INDEX 00 00:00:00\n    INDEX 01 00:02:00\n' \
+            "$(basename -- "$OUT_ABS")" "$T2" > "$OUT_DIR/Puyo Puyo 2 (English).cue"
+        [ -f "$OUT_DIR/$T2" ] || echo "Copy $T2 next to $OUT_DIR/Puyo Puyo 2 (English).cue" >&2
+        echo "Patched Saturn Track 1 written to $OUT_ABS (open $OUT_DIR/Puyo Puyo 2 (English).cue)"
+        ;;
     *.[Zz][Ii][Pp])
         for cmd in unzip zip; do
             if ! command -v "$cmd" >/dev/null 2>&1; then

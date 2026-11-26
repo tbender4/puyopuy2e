@@ -1,12 +1,14 @@
 <#
 .SYNOPSIS
-  Apply Puyo Puyo 2 English IPS patches (Mega Drive .ips or Arcade -ips.zip).
+  Apply Puyo Puyo 2 English patches (Mega Drive .ips, Arcade -ips.zip or Saturn .bps).
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File .\patch.ps1 "Puyo Puyo 2 (Japan) (v1.1).md" puyopuy2e-md-no-red-puyos.ips
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File .\patch.ps1 puyopuy2.zip puyopuy2e-arcade-no-red-puyos-ips.zip
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File .\patch.ps1 puyopuy2.zip puyopuy2e-arcade-no-red-puyos-ips.zip -Mame
+.EXAMPLE
+  powershell -ExecutionPolicy Bypass -File .\patch.ps1 "PUYO_PUYO_TSU____ (Track 1).bin" puyopuy2e-saturn-no-red-puyos.bps
 #>
 param(
     [Parameter(Mandatory = $true, Position = 0)][string]$Rom,
@@ -62,6 +64,60 @@ function Assert-Base([byte[]]$Data, [string]$Sha1, [string]$Label) {
     if ($h -ne $Sha1) { throw "$Label is not the expected base ROM (SHA-1 $h, need $Sha1)" }
 }
 
+Add-Type -TypeDefinition @'
+public static class Crc32File {
+    public static uint Of(string path) {
+        uint[] t = new uint[256];
+        for (uint n = 0; n < 256; n++) { uint c = n; for (int k = 0; k < 8; k++) c = (c & 1) != 0 ? 0xEDB88320u ^ (c >> 1) : c >> 1; t[n] = c; }
+        uint crc = 0xFFFFFFFFu; byte[] buf = new byte[1 << 20]; int r;
+        using (var f = System.IO.File.OpenRead(path)) {
+            while ((r = f.Read(buf, 0, buf.Length)) > 0) for (int i = 0; i < r; i++) crc = t[(crc ^ buf[i]) & 0xFF] ^ (crc >> 8);
+        }
+        return ~crc;
+    }
+}
+'@
+
+function Read-Varint([byte[]]$P, [ref]$I) {
+    [long]$data = 0; [long]$shift = 1
+    while ($true) {
+        $x = $P[$I.Value]; $I.Value++
+        $data += ($x -band 0x7f) * $shift
+        if ($x -band 0x80) { return $data }
+        $shift = $shift -shl 7
+        $data += $shift
+    }
+}
+
+# Saturn Track 1 BPS (only SourceRead/TargetRead, what make_ips.py writes): copy the source, write the new bytes in place
+function Apply-Bps([string]$Src, [string]$PatchFile, [string]$Dst) {
+    [byte[]]$p = [IO.File]::ReadAllBytes($PatchFile)
+    if ($p.Length -lt 19 -or [Text.Encoding]::ASCII.GetString($p, 0, 4) -ne 'BPS1') { throw 'Invalid BPS header' }
+    $i = 4
+    $nSrc = Read-Varint $p ([ref]$i); $nDst = Read-Varint $p ([ref]$i); $meta = Read-Varint $p ([ref]$i); $i += $meta
+    $crcSrc = [BitConverter]::ToUInt32($p, $p.Length - 12); $crcDst = [BitConverter]::ToUInt32($p, $p.Length - 8)
+    if ((Get-Item -LiteralPath $Src).Length -ne $nSrc -or [Crc32File]::Of($Src) -ne $crcSrc) {
+        throw ("$Src is not the expected base disc (need {0} bytes, CRC32 {1:x8})" -f $nSrc, $crcSrc)
+    }
+    Copy-Item -LiteralPath $Src -Destination $Dst -Force
+    $f = [IO.File]::Open($Dst, 'Open', 'ReadWrite')
+    try {
+        $f.SetLength($nDst)
+        [long]$pos = 0
+        while ($i -lt $p.Length - 12) {
+            $cmd = Read-Varint $p ([ref]$i)
+            $n = ($cmd -shr 2) + 1
+            switch ($cmd -band 3) {
+                0 { }
+                1 { $f.Position = $pos; $f.Write($p, $i, $n); $i += $n }
+                default { throw 'Unsupported BPS action (use Flips for third-party patches)' }
+            }
+            $pos += $n
+        }
+    } finally { $f.Dispose() }
+    if ([Crc32File]::Of($Dst) -ne $crcDst) { Remove-Item -LiteralPath $Dst; throw 'Patched disc does not match the BPS target CRC32' }
+}
+
 function Read-ZipEntry([System.IO.Compression.ZipArchive]$Zip, [string]$Name) {
     $e = $Zip.Entries | Where-Object { $_.Name -ieq $Name } | Select-Object -First 1
     if (-not $e) { throw "Missing $Name inside archive" }
@@ -86,7 +142,18 @@ $resolveOut = {
     return $full
 }
 
-if ($patchPath.ToLower().EndsWith('.zip')) {
+if ($patchPath.ToLower().EndsWith('.bps')) {
+    $outFull = & $resolveOut $Out 'Puyo Puyo 2 (English) (Track 1).bin'
+    Apply-Bps $romPath $patchPath $outFull
+    # .cue beside the new Track 1; Track 2 (audio) is unchanged and must sit in the same folder
+    $t2 = (Split-Path -Leaf $romPath) -replace '\(Track 1\)', '(Track 2)'
+    $cue = "FILE `"$(Split-Path -Leaf $outFull)`" BINARY`n  TRACK 01 MODE1/2352`n    INDEX 01 00:00:00`n" +
+           "FILE `"$t2`" BINARY`n  TRACK 02 AUDIO`n    INDEX 00 00:00:00`n    INDEX 01 00:02:00`n"
+    $cuePath = Join-Path (Split-Path -Parent $outFull) 'Puyo Puyo 2 (English).cue'
+    [IO.File]::WriteAllText($cuePath, $cue)
+    if (-not (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $outFull) $t2))) { Write-Warning "Copy $t2 next to $cuePath" }
+    Write-Host "Patched Saturn Track 1 written to $outFull (open $cuePath)"
+} elseif ($patchPath.ToLower().EndsWith('.zip')) {
     Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
     $outFull = & $resolveOut $Out ($(if ($Mame) { 'puyopuy2-en.zip' } else { 'puyopuy2e.zip' }))
 

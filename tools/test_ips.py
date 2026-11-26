@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stdlib-only regression tests for tools/ips.py, make_ips.py, and tools/release.py."""
+"""Stdlib-only regression tests for tools/ips.py, tools/bps.py, make_ips.py, and tools/release.py."""
 import io, json, os, subprocess, sys, tempfile, urllib.error, urllib.request, zipfile
 from pathlib import Path
 
@@ -16,7 +16,39 @@ class BlockPIL:
 
 # installed before importing the tools so a top-level PIL import in them fails too
 sys.meta_path.insert(0, BlockPIL())
-import ips, logo, make_ips, make_puyopuy2e_md, release
+import bps, ips, logo, make_ips, make_puyopuy2e_md, make_puyopuy2e_saturn, release
+
+
+def test_bps_edge_cases():
+    def roundtrip(src, dst):
+        patch = bps.encode(src, dst)
+        with tempfile.TemporaryFile() as f:
+            bps.apply(src, patch, f)
+            f.seek(0)
+            assert f.read() == dst, (len(src), len(dst))
+        return patch
+
+    src = bytes((i * 7919) & 0xff for i in range(3 << 20))     # spans several 1 MB chunks
+    dst = bytearray(src)
+    dst[5:9] = b'abcd'
+    dst[(1 << 20) - 2:(1 << 20) + 2] = b'WXYZ'                  # change across a chunk boundary
+    dst[-1] ^= 1
+    assert len(roundtrip(src, bytes(dst))) < 64
+    for s, d in ((b'', b''), (b'abc', b'abc'), (b'abc', b'abcdef'), (b'abcdef', b'abc'), (b'', b'xyz'), (b'abc', b'')):
+        roundtrip(s, d)
+    # header layout and varints against the spec: 'BPS1', sizes 3 and 6, no metadata
+    assert bps.encode(b'abc', b'abcdef')[:7] == b'BPS1\x83\x86\x80'
+    assert bps._read_varint(bps._varint(300), 0) == (300, 2)
+
+    patch = bps.encode(b'abc', b'abd')
+    for bad_src, bad_patch, msg in ((b'abx', patch, 'wrong source'),
+                                    (b'abc', patch[:-5] + b'\0' + patch[-4:], 'corrupt')):
+        try:
+            bps.apply(bad_src, bad_patch, tempfile.TemporaryFile())
+            raise AssertionError('accepted ' + msg)
+        except ValueError as e:
+            assert msg in str(e), e
+    print('PASS bps unit edge cases')
 
 
 def test_ips_edge_cases():
@@ -92,6 +124,7 @@ def test_git_changelog():
         assert '### Changes\n- Add Mega Drive IPS patches\n- Fix Nomi icon arrow' in notes
         assert '### Base ROMs required\n\n| Platform |' in notes
         assert '### Auto-patcher' in notes and '#### Windows (PowerShell)' in notes and '#### Linux / macOS' in notes
+        assert '| Saturn | `PUYO_PUYO_TSU____ (Track 1).bin`' in notes and 'saturn .bps' in notes
         assert '### GUI patcher' in notes and 'RomPatcher.js' in notes and 'Lunar IPS' not in notes
         assert 'https://github.com/me/repo/compare/r20261124-0000001...r20261124-0000002' in notes
     print('PASS git_changelog + release notes')
@@ -195,10 +228,16 @@ def test_rom_ips():
                     ]
                     assert b'\r\n' not in z.read('patch.sh'), 'patch.sh must use LF line endings'
             print('PASS Arcade per-chip IPS bundles (3/3 logo modes)')
+        sat_bin = os.path.join(ROOT, 'saturn', make_puyopuy2e_saturn.ORIG_NAME)
+        if os.path.exists(sat_bin):
+            arts = make_ips.build_saturn_bps(sat_bin, td, [logo.DEFAULT_MODE])   # one mode: 606 MB each
+            assert len(arts) == 1
+            print('PASS Saturn Track 1 BPS round-trip (default logo mode)')
 
 
 def main():
     test_ips_edge_cases()
+    test_bps_edge_cases()
     test_git_changelog()
     test_publish_mock()
     test_rom_ips()

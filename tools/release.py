@@ -9,7 +9,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 sys.path.insert(0, ROOT)
-import make_puyopuy2e_md, romset
+import make_puyopuy2e_md, make_puyopuy2e_saturn, romset
 
 API_BASE = 'https://api.github.com'
 UPLOAD_BASE = 'https://uploads.github.com'
@@ -61,23 +61,27 @@ def release_notes(repo=None, tag=None, prev_tag='', commits=()):
     snd_name, snd_crc = romset.SOUND
     lines += [
         f'| Arcade (`puyopuy2.zip`) | `{snd_name}` (unchanged) | 524,288 | `{snd_crc:08x}` |',
+        f'| Saturn | `{make_puyopuy2e_saturn.ORIG_NAME}` (Track 2 unchanged) | {make_puyopuy2e_saturn.ORIG_SIZE:,} '
+        f'| `{make_puyopuy2e_saturn.ORIG_CRC:08x}` |',
         '',
         '### Auto-patcher',
         '',
         '#### Windows (PowerShell)',
         '```powershell',
-        r'powershell -ExecutionPolicy Bypass -File .\patch.ps1 <base_rom> <patch.ips or arcade-ips.zip>',
+        r'powershell -ExecutionPolicy Bypass -File .\patch.ps1 <base_rom> <patch.ips, arcade-ips.zip or saturn .bps>',
         '```',
         'Add `-Mame` for upstream MAME (`epr-*` filenames).',
         '',
         '#### Linux / macOS',
         '```sh',
-        './patch.sh <base_rom> <patch.ips or arcade-ips.zip>',
+        './patch.sh <base_rom> <patch.ips, arcade-ips.zip or saturn .bps>',
         '```',
         'Add `--mame` for upstream MAME (`epr-*` filenames).',
         '',
+        'Saturn: pass Track 1; the patcher writes the English Track 1 and a `.cue` that uses the original Track 2 (keep it in the same folder).',
+        '',
         '### GUI patcher',
-        'Patch in the browser with [RomPatcher.js](https://www.marcrobledo.com/RomPatcher.js/) (see `README.txt` inside the arcade zip for manual steps).',
+        'Patch in the browser with [RomPatcher.js](https://www.marcrobledo.com/RomPatcher.js/) (see `README.txt` inside the arcade zip for manual steps). Floating IPS (Flips) also applies the Saturn `.bps`.',
     ]
     return '\n'.join(lines)
 

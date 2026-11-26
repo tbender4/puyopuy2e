@@ -11,11 +11,12 @@ import logo, saturn_build, saturn_iso
 
 ORIG_NAME = 'PUYO_PUYO_TSU____ (Track 1).bin'
 ORIG_SIZE = 606498480
+ORIG_CRC = 0x3f966f9d
 OUT_BIN_NAME = 'Puyo Puyo 2 (English) (Track 1).bin'
 OUT_CUE_NAME = 'Puyo Puyo 2 (English).cue'
 
 
-def _verify_disc(src_bin):
+def verify_disc(src_bin):
     size = os.path.getsize(src_bin)
     if size != ORIG_SIZE:
         raise SystemExit(f'unexpected Track 1 size ({size} bytes): need {ORIG_NAME} ({ORIG_SIZE} bytes)')
@@ -44,7 +45,7 @@ def main():
         src = os.path.join(src, ORIG_NAME)
     if not os.path.isfile(src):
         raise SystemExit(f'{src} not found: supply {ORIG_NAME}')
-    _verify_disc(src)
+    verify_disc(src)
 
     out_dir = pos[1] if len(pos) > 1 else os.path.join(HERE, 'dist', 'saturn')
     out_bin = os.path.join(out_dir, OUT_BIN_NAME)

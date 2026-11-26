@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""make_ips.py - Generate verified IPS patches for Puyo Puyo 2 (Mega Drive + Sega C2 Arcade).
+"""make_ips.py - Generate verified patches for Puyo Puyo 2: IPS (Mega Drive, Sega C2 Arcade), BPS (Saturn).
 
 Only the Python 3 standard library is used. Base ROMs are required locally to compute diffs."""
-import argparse, hashlib, os, sys, zipfile, zlib
+import argparse, hashlib, mmap, os, sys, tempfile, zipfile, zlib
 from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, 'tools'))
 sys.path.insert(0, HERE)
-import build, ips, logo, make_puyopuy2e, make_puyopuy2e_md, md_build, romset
+import bps, build, ips, logo, make_puyopuy2e, make_puyopuy2e_md, make_puyopuy2e_saturn, md_build, romset
+import saturn_build, saturn_iso
 
 
 def _crc32(data):
@@ -104,6 +105,28 @@ def build_md_ips(src_md, out_dir, modes):
     return artifacts
 
 
+def build_saturn_bps(src_bin, out_dir, modes):
+    """Build and round-trip-verify Saturn Track 1 BPS patches for each logo mode (IPS stops at 16 MB)."""
+    make_puyopuy2e_saturn.verify_disc(src_bin)
+    artifacts = []
+    with tempfile.TemporaryDirectory(prefix='pp2e_bps_') as td, open(src_bin, 'rb') as sf, \
+            mmap.mmap(sf.fileno(), 0, access=mmap.ACCESS_READ) as src:
+        built_bin = os.path.join(td, 'track1.bin')
+        for mode in modes:
+            saturn_iso.patch_iso(src_bin, built_bin, saturn_build.build(src_bin, logo_mode=mode))
+            with open(built_bin, 'rb') as bf, mmap.mmap(bf.fileno(), 0, access=mmap.ACCESS_READ) as dst:
+                patch = bps.encode(src, dst)
+                crc = bps.header(patch)[3]
+            with open(os.path.join(td, 'check.bin'), 'w+b') as cf:
+                bps.apply(src, patch, cf)   # raises unless the result matches the target CRC32
+            fname = f'puyopuy2e-saturn-{mode}.bps'
+            fpath = os.path.join(out_dir, fname)
+            Path(fpath).write_bytes(patch)
+            print(f'verified {fname} ({len(patch)} bytes, patched Track 1 CRC32 {crc:08x})')
+            artifacts.append(fpath)
+    return artifacts
+
+
 def write_checksums(out_dir, paths):
     """Write SHA256SUMS.txt covering all generated patch artifacts."""
     lines = [f'{hashlib.sha256(Path(path).read_bytes()).hexdigest()}  {os.path.basename(path)}\n' for path in paths]
@@ -113,37 +136,41 @@ def write_checksums(out_dir, paths):
 
 
 def main():
-    p = argparse.ArgumentParser(description='Generate verified IPS patches for Mega Drive and Arcade.')
+    p = argparse.ArgumentParser(description='Generate verified patches for Mega Drive, Arcade and Saturn.')
     p.add_argument('--out', default=os.path.join(HERE, 'dist'), help='output directory (default: dist)')
     p.add_argument('--logo', choices=logo.MODES, action='append',
                    help=f'logo variant to build (repeatable; default: {logo.DEFAULT_MODE})')
     p.add_argument('--roms-dir', default=None,
-                   help='directory holding puyopuy2.zip and Puyo Puyo 2 (Japan) (v1.1).md')
+                   help='directory holding puyopuy2.zip, Puyo Puyo 2 (Japan) (v1.1).md and saturn/')
     p.add_argument('--arcade', default=None, help='path to puyopuy2.zip')
     p.add_argument('--no-arcade', action='store_true', help='skip arcade IPS bundles')
     p.add_argument('--md', default=None, help='path to Puyo Puyo 2 (Japan) (v1.1).md')
     p.add_argument('--no-md', action='store_true', help='skip Mega Drive IPS patches')
+    p.add_argument('--saturn', default=None, help=f'path to {make_puyopuy2e_saturn.ORIG_NAME}')
+    p.add_argument('--no-saturn', action='store_true', help='skip Saturn BPS patches')
     args = p.parse_args()
 
-    if args.no_md and args.no_arcade:
-        raise SystemExit('nothing to build: both --no-md and --no-arcade set')
+    if args.no_md and args.no_arcade and args.no_saturn:
+        raise SystemExit('nothing to build: --no-md, --no-arcade and --no-saturn all set')
 
     modes = list(dict.fromkeys(args.logo)) if args.logo else [logo.DEFAULT_MODE]
     os.makedirs(args.out, exist_ok=True)
     artifacts = []
     rom_root = args.roms_dir or HERE
 
-    if not args.no_md:
-        md_path = args.md or os.path.join(rom_root, make_puyopuy2e_md.ORIG_NAME)
-        if not os.path.exists(md_path):
-            raise SystemExit(f'{md_path} not found (pass --no-md to skip)')
-        artifacts.extend(build_md_ips(md_path, args.out, modes))
-
-    if not args.no_arcade:
-        arc_path = args.arcade or os.path.join(rom_root, 'puyopuy2.zip')
-        if not os.path.exists(arc_path):
-            raise SystemExit(f'{arc_path} not found (pass --no-arcade to skip)')
-        artifacts.extend(build_arcade_ips(arc_path, args.out, modes))
+    # check every input before building anything, so a missing one leaves no half-written dist
+    jobs = [
+        (args.no_md, args.md or os.path.join(rom_root, make_puyopuy2e_md.ORIG_NAME), '--no-md', build_md_ips),
+        (args.no_arcade, args.arcade or os.path.join(rom_root, 'puyopuy2.zip'), '--no-arcade', build_arcade_ips),
+        (args.no_saturn, args.saturn or os.path.join(rom_root, 'saturn', make_puyopuy2e_saturn.ORIG_NAME),
+         '--no-saturn', build_saturn_bps),
+    ]
+    jobs = [job[1:] for job in jobs if not job[0]]
+    for path, flag, _ in jobs:
+        if not os.path.exists(path):
+            raise SystemExit(f'{path} not found (pass {flag} to skip)')
+    for path, _, fn in jobs:
+        artifacts.extend(fn(path, args.out, modes))
 
     # Copy auto-patcher helper scripts alongside the generated patches
     for script, unix_nl in (('patch.ps1', False), ('patch.sh', True)):
