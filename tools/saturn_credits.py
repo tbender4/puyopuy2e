@@ -55,11 +55,10 @@ ROLL = (
     ('Supervisor', [('Jemini', '')]),
     ('Produced by', [('Compile', '')]),
 )
-END_Y = 1872        # the last line of the Japanese roll
 
 
 def layout():
-    """[(y, x, text)] of the English roll, its last line on END_Y"""
+    """[(y, x, text)] of the English roll"""
     items, y = [], 0
     for heading, rows in ROLL:
         sub = heading.startswith('  ')
@@ -78,9 +77,8 @@ def layout():
             if right:
                 items.append((y, RIGHT, right))
             y += PITCH
-    shift = END_Y - items[-1][0]
-    assert shift >= 0, 'English staff roll is %d px too tall' % -shift
-    return [(y + shift, x, t) for y, x, t in items]
+    assert items[-1][0] + PITCH <= PAGES * 8 * H, 'English staff roll too tall'
+    return items                                # starts on row 0, as the Japanese roll does
 
 
 def roll_image():

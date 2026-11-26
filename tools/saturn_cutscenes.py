@@ -1,6 +1,7 @@
 """Saturn Milestone D: Game Arts cutscene art (EFFECT.DAT, PUYOSHOW.FLD) in English."""
+import functools, os
 import game_arts as ga
-import gfx, labels, md_credits, saturn_credits
+import font, gfx, labels, md_credits, saturn_credits
 
 EFFECT_CAPTION = 3      # EFFECT.DAT part: the 64x15 30分経過 caption map (palette bank 1, colour 15)
 
@@ -23,6 +24,26 @@ def _sprite_put(pixels, addr, img):
     for y, row in enumerate(img):
         for x in range(0, w, 2):
             pixels[addr * 8 + (y * w + x) // 2] = row[x] << 4 | row[x + 1]
+
+
+@functools.lru_cache(None)
+def _font6():
+    return font.load_bdf(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'font', 'spleen-6x12.bdf'))
+
+
+def _small_text(s, colour=1):
+    """columns of s in Spleen 6x12 (12 rows), glyphs trimmed to their ink + 1 px, spaces 3 px"""
+    cols = []
+    for ch in s:
+        if ch == ' ':
+            cols += [[0] * 12] * 3
+            continue
+        rows = _font6()[ord(ch)]
+        ink = [c for c in range(8) if any(r >> (7 - c) & 1 for r in rows)]
+        for c in range(ink[0], ink[-1] + 1):
+            cols.append([colour if rows[y] >> (7 - c) & 1 else 0 for y in range(12)])
+        cols.append([0] * 12)
+    return cols[:-1]
 
 
 def _text_mask(text, gap=1):
@@ -86,10 +107,10 @@ def apply_effect(effect):
 
 
 SLOT = 45056            # work RAM slot of a regular PUYOSHOW sprite set
-# PUYOSHOW entry -> {sprite: lines}: Nomi's signs (the video's wording; ってば as I SAID I'M HERE!)
+# PUYOSHOW entry -> {sprite: lines}: Nomi's signs (ここにいる as I'M HERE, as on the tower; ってば as I SAID I'M HERE!)
 SIGNS = {
-    69: {15: ('I AM', 'HERE'), 16: ('I SAID', "I'M HERE!")},
-    71: {14: ('I AM', 'HERE'), 15: ('SHOULD', 'BE HERE'), 16: ('FOUND', 'IT!'), 17: ('MAYBE', "I'M HERE")},
+    69: {15: ("I'M", 'HERE'), 16: ('I SAID', "I'M HERE!")},
+    71: {14: ("I'M", 'HERE'), 15: ('SHOULD', 'BE HERE'), 16: ('FOUND', 'IT!'), 17: ('MAYBE', "I'M HERE")},
 }
 
 
@@ -99,7 +120,7 @@ def _sign(px, lines, palette):
     h, w = len(px), len(px[0])
     used = {v for row in px for v in row if v > 1}
     by_light = sorted(used, key=lambda v: -sum(palette[v]))
-    ramp = (by_light[0], by_light[len(by_light) // 2], by_light[-1])
+    ramp = (by_light[0], by_light[1], by_light[len(by_light) // 2])   # the bright half, like the kana
     out = [[0] * w for _ in range(h)]
     pitch = (h - 2) // len(lines)
     for k, line in enumerate(lines):
@@ -127,6 +148,11 @@ def apply_signs(ents):
 # PUYOSHOW 9 (Cockadoodle): the two vertical caption strips, as wrapped horizontal lines
 CAPTIONS = {9: {30: "Why would you say something like that?! It's terrible! Just terrible!",
                 31: "Sorry, but it's the Puyo Under- world with you!"}}
+# where the Japanese text sat in each strip: (centre x, centre y)
+CAPTION_CENTRE = {30: (26, 95), 31: (22, 112)}
+# script entry 8 shows caption 30 for 0x78 frames, then nothing for about 117 frames before
+# caption 31: hold it the whole time (English takes longer to read)
+CAPTION_HOLD = (8, bytes.fromhex('01091e7800'), bytes.fromhex('01091eee00'))
 
 
 def _wrap(text, width):
@@ -141,13 +167,14 @@ def _wrap(text, width):
     return lines + [cur]
 
 
-def _caption(w, h, text, fill, edge):
+def _caption(w, h, text, fill, edge, centre):
     out = [[0] * w for _ in range(h)]
+    cx, cy = centre
     lines = _wrap(text, w - 2)
-    y0 = (h - 16 * len(lines)) // 2
+    y0 = cy - 8 * len(lines)
     for k, line in enumerate(lines):
         cols = md_credits._text(line)
-        x0 = (w - len(cols)) // 2
+        x0 = min(max(1, cx - len(cols) // 2), w - 1 - len(cols))   # near cx, inside the strip
         for x, col in enumerate(cols):
             for y, v in enumerate(col):
                 if v:
@@ -160,9 +187,12 @@ def apply_captions(ents):
         table, pixels = ga.sprites_parse(ents[entry])
         for k, text in caps.items():
             _, w, h, addr = table[k]
-            _sprite_put(pixels, addr, _caption(w, h, text, 8, 5))    # white, dark edge: the original's colours
+            _sprite_put(pixels, addr, _caption(w, h, text, 7, 8, CAPTION_CENTRE[k]))   # white, black edge
         ents[entry] = ga.sprites_pack(ents[entry], pixels)
         assert len(ents[entry]) <= SLOT, 'PUYOSHOW %d: %d bytes' % (entry, len(ents[entry]))
+    entry, old, new = CAPTION_HOLD
+    assert ents[entry].count(old) == 1
+    ents[entry] = ents[entry].replace(old, new)
 
 
 AIDS = 157              # PUYOSHOW entry: the Act Against AIDS card (one 40x28 scene map)
@@ -188,24 +218,27 @@ def apply_aids(ents):
     w, h, cells, _ = ga.map_decode(scene['parts'][2], 0)
     img = _map_pixels(tiles, w, h, cells)
     paper, ink = 15, 10                         # the card's white and black
-    for y in range(148, h * 8):
+    for y in range(146, h * 8):                 # the Japanese text: rows 147-201
         img[y] = [paper] * (w * 8)
+    # as the Japanese: the slogan (rows 147-165) centred on x 157, the three lines a size smaller
+    # (Spleen 6x12, capitals 8 rows) centred on 172/184/195, the bullet block centred under it
     slogan = _text_mask(AIDS_TEXT[0], 1)
-    x0 = (w * 8 - len(slogan[0])) // 2
+    x0 = 157 - len(slogan[0]) // 2
     for y, row in enumerate(slogan):
         for x, v in enumerate(row):
             if v:
-                img[151 + y][x0 + x] = ink
-    for k, line in enumerate(AIDS_TEXT[1]):
-        y0 = 170 + 17 * k
+                img[150 + y][x0 + x] = ink
+    lines = [_small_text(t) for t in AIDS_TEXT[1]]
+    left = 157 - (9 + max(map(len, lines))) // 2          # bullet 5 px + 4 px gap, then the text
+    for cols, centre in zip(lines, (172, 184, 195)):
         for y in range(5):                      # the bullet, a 5x5 disc
             for x in range(5):
                 if (x - 2) ** 2 + (y - 2) ** 2 <= 5:
-                    img[y0 + 6 + y][110 + x] = ink
-        for x, col in enumerate(md_credits._text(line)):
+                    img[centre - 2 + y][left + x] = ink
+        for x, col in enumerate(cols):
             for y, v in enumerate(col):
                 if v:
-                    img[y0 + y][120 + x] = ink
+                    img[centre - 5 + y][left + 9 + x] = ink    # capitals on glyph rows 1-8
     _redraw_map(scene, 2, img, max(cells) & 0x007F0000, grow=256)   # the card is alone on screen
     blocks[0] = ga.scene_pack(scene)
     ents[AIDS] = ga.container_pack(head, blocks, order)
@@ -213,25 +246,54 @@ def apply_aids(ents):
 
 SCHEZO = 107            # PUYOSHOW entry: Arle calls Schezo ヘンタイ, the sign flips to タイヘン
 SCHEZO_SIGNS = {52: 'PERVERT', 53: 'TERRIBLE'}
+SCHEZO_NOTE = ('TL: HENTAI (PERVERT)', 'FLIPS INTO', 'TAIHEN (TERRIBLE)')
+SCHEZO_STYLE = 'b'      # a: kana + TL note, b: small English above the kana, c: both
+# the sign is drawn centred on its actor (measured in game: a taller sprite grows both ways),
+# whose centre is about (220, 93) on screen; the note goes to the bottom right of the screen
+NOTE_DX, NOTE_BOTTOM = 64, 112          # note right edge / bottom from the sign's centre: on the floor between Arle and Schezo
 
 
-def apply_schezo(ents):
-    """keep the kana (the anagram is the joke) and subtitle each sign: 72x16 -> 72x32"""
+def _spleen(img, text, x0, y0, fill, edge):
+    """draw text in Spleen 8x16 (capital rows 2-11) at (x0, y0), with an edge ring"""
+    layer = [[0] * len(img[0]) for _ in img]
+    for x, col in enumerate(md_credits._text(text)):
+        for y, v in enumerate(col):
+            if v:
+                layer[y0 + y][x0 + x] = fill
+    layer = labels.ring(layer, edge, {fill})
+    for y, row in enumerate(layer):
+        for x, v in enumerate(row):
+            if v:
+                img[y][x] = v
+
+
+def apply_schezo(ents, style=None):
+    """keep the kana (the swap is the joke); b: PERVERT / TERRIBLE small above them, a: a TL
+    note at the bottom right instead, c: both. The canvas grows symmetrically so the kana stay put."""
+    style = style or SCHEZO_STYLE
     b = ents[SCHEZO]
     table, pixels = ga.sprites_parse(b)
     for k, word in SCHEZO_SIGNS.items():
         _, w, h, addr = table[k]
         old = _sprite_get(pixels, addr, w, h)
-        W, H = 72, 32
-        img = [row + [0] * (W - w) for row in old] + [[0] * W for _ in range(H - h)]
-        m = _text_mask(word, 1)
-        x0 = (W - len(m[0])) // 2
-        sub = [[0] * W for _ in range(H - h)]
-        for y in range(13):
-            for x, v in enumerate(m[y]):
-                if v:
-                    sub[1 + y][x0 + x] = 12         # the kana's yellow
-        img[h:] = labels.ring(sub, 1, {12})         # black edge
+        top = 12 if style in 'bc' else 0        # room for one Spleen capital line + edge
+        half_h, half_w = h // 2 + top, 40
+        note = style in 'ac' and k == 52       # the first sign shows once (the flipped one three times); one canvas fits the slot
+        if note:
+            half_h, half_w = NOTE_BOTTOM + 2, NOTE_DX + 2
+        W, H = 2 * half_w, 2 * half_h
+        W += -W % 8
+        img = [[0] * W for _ in range(H)]
+        ox, oy = W // 2 - w // 2, H // 2 - h // 2
+        for y in range(h):
+            img[oy + y][ox:ox + w] = old[y]
+        if style in 'bc':
+            cols = len(md_credits._text(word))
+            _spleen(img, word, W // 2 - cols // 2, oy - 13, 12, 1)    # the kana's yellow, black edge
+        if note:
+            for n, line in enumerate(SCHEZO_NOTE):
+                cols = len(md_credits._text(line))
+                _spleen(img, line, W // 2 + NOTE_DX - cols - 1, H // 2 + NOTE_BOTTOM - 13 * (3 - n) - 2, 15, 1)
         data = bytearray(W * H // 2)
         _sprite_put(data, 0, img)
         b = ga.sprites_resize(b, pixels, k, W, H, data)

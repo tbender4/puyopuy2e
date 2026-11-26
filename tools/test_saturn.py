@@ -621,14 +621,14 @@ def test_real_disc():
                     old = game_arts.scene_parse(game_arts.container_parse(orig_show[entry])[1][block])
                     _check_redraw(old, scene, set(range(first, first + saturn_credits.PAGES)))
                 # cutscenes: the AIDS card's art above the text is unchanged; Schezo's
-                # signs grow to 72x32 with their original pixels kept as a prefix
+                # signs grow (style b: 80x40) with their original pixels kept as a prefix
                 old = game_arts.scene_parse(game_arts.container_parse(orig_show[157])[1][0])
                 new = game_arts.scene_parse(game_arts.container_parse(show[157])[1][0])
                 _check_redraw(old, new, 2, keep_rows=18)    # the card's art above the text
                 t107, p107 = game_arts.sprites_parse(show[107])
                 o107 = game_arts.sprites_parse(orig_show[107])[1]
                 assert p107[:len(o107)] == o107
-                assert all(t107[k][1:3] == (72, 32) for k in (52, 53))
+                assert all(t107[k][1:3] == (80, 40) for k in (52, 53))   # style b: small English above the kana
                 assert len(show[107]) <= 45056
             elif name == 'EFFECT.DAT':
                 old = game_arts.scene_parse(orig_effect)
