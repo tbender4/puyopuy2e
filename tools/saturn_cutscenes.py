@@ -151,10 +151,11 @@ def apply_signs(ents):
 CAPTIONS = {9: {30: "Why would you say something like that?! It's terrible! Just terrible!",
                 31: "Sorry, but it's the Puyo Under- world with you!"}}
 # where the Japanese text sat in each strip: (centre x, centre y)
-CAPTION_CENTRE = {30: (26, 95), 31: (22, 112)}
-# caption 31's lines already touch its sprite's left edge; the sprite's screen position comes from
-# the skit script (widening it grows it to the right), so moving it further left needs a script edit
+CAPTION_CENTRE = {30: (26, 95), 31: (26, 112)}
 CAPTION_WIDTH = {}
+# the script spawns caption 31 at x 0x100 (op 03: actor, frame, x, y, LE words), caption 30 at
+# x 0xF0; captions are anchored top-left (no op 16), so give 31 the same x
+CAPTION_X = (8, bytes.fromhex('03a0cc0100010000'), bytes.fromhex('03a0cc01f0000000'))
 # script entry 8 shows caption 30 for 0x78 frames, then nothing for about 117 frames before
 # caption 31: hold it the whole time (English takes longer to read)
 CAPTION_HOLD = (8, bytes.fromhex('01091e7800'), bytes.fromhex('01091eee00'))
@@ -203,9 +204,9 @@ def apply_captions(ents):
                 b = ga.sprites_resize(b, pixels, k, W, h, data)
         ents[entry] = ga.sprites_pack(b, pixels)
         assert len(ents[entry]) <= SLOT, 'PUYOSHOW %d: %d bytes' % (entry, len(ents[entry]))
-    entry, old, new = CAPTION_HOLD
-    assert ents[entry].count(old) == 1
-    ents[entry] = ents[entry].replace(old, new)
+    for entry, old, new in (CAPTION_HOLD, CAPTION_X):
+        assert ents[entry].count(old) == 1
+        ents[entry] = ents[entry].replace(old, new)
 
 
 AIDS = 157              # PUYOSHOW entry: the Act Against AIDS card (one 40x28 scene map)
