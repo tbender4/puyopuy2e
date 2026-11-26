@@ -69,6 +69,8 @@ inside its original disc sectors, so the image keeps its size and layout.
   rule slot save and load boxes
 - Tsuu mode character select (`START!`) and Nomi on the BEST RECORDS screen
 - The sound test's two bonus video titles
+- The ending staff roll: roles and every name as [MobyGames](https://www.mobygames.com/game/13047/puyo-puyo-2/credits/sega-saturn/)
+  credits them (credited aliases kept as aliases)
 
 ## Not translated yet
 
@@ -77,7 +79,6 @@ These are Game Arts' own files, in other formats, planned as Milestone D:
 - The voiced manzai skits between matches (their captions and sound-effect lettering)
 - The `30分経過` ("30 minutes later") caption
 - The Saturn Act Against AIDS card in attract mode
-- The ending staff roll
 
 The voice audio and the FMV videos are left as they are.
 
@@ -102,3 +103,4 @@ The voice audio and the FMV videos are left as they are.
 | Options | ![](screenshots/saturn/options_jp.png) | ![](screenshots/saturn/options_en.png) |
 | Tutorial | ![](screenshots/saturn/tutorial_jp.png) | ![](screenshots/saturn/tutorial_en.png) |
 | Tutorial | ![](screenshots/saturn/tutorial2_jp.png) | ![](screenshots/saturn/tutorial2_en.png) |
+| Staff roll | ![](screenshots/saturn/credits_jp.png) | ![](screenshots/saturn/credits_en.png) |

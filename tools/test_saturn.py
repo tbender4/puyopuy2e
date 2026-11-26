@@ -13,7 +13,7 @@ sys.meta_path.insert(0, _BlockPIL())
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
-import gfx, logo, lz, saturn_arch, saturn_build, saturn_iso, saturn_ui
+import game_arts, gfx, logo, lz, saturn_arch, saturn_build, saturn_credits, saturn_iso, saturn_ui
 
 SATURN_BIN = os.path.join(ROOT, 'saturn', 'PUYO_PUYO_TSU____ (Track 1).bin')
 MD_ROM = os.path.join(ROOT, 'Puyo Puyo 2 (Japan) (v1.1).md')
@@ -475,6 +475,31 @@ def test_saturn_ui_units():
     print('PASS Milestone C saturn_ui synthetic unit tests (VDP2 screen, hardness, slot, START!, Nomi x2)')
 
 
+def test_game_arts():
+    """Game Arts codecs: synthetic LZSS/map round trips, then the real PUYOSHOW.FLD and
+    EFFECT.DAT rebuilt byte for byte from their parsed parts."""
+    for data in (b'', b'a', bytes(5000), bytes(range(256)) * 40, os.urandom(3000) + bytes(3000)):
+        assert game_arts.lzss_decompress(game_arts.lzss_compress(data))[0] == data
+    cells = [0x00020001] * 70 + [0x00020002, 0x40020003] + [0] * 5
+    w, h, back, _ = game_arts.map_decode(game_arts.map_encode(7, 11, cells), 0)
+    assert (w, h, back) == (7, 11, cells)
+    if not os.path.exists(SATURN_BIN):
+        print('SKIP Game Arts real-disc round trip (no Track 1)')
+        return
+    with open(SATURN_BIN, 'rb') as f:
+        entries = saturn_iso.parse_iso(f)
+        show = saturn_iso.read_iso_file(f, 'PUYOSHOW.FLD', entries)
+        effect = saturn_iso.read_iso_file(f, 'EFFECT.DAT', entries)
+    ents = game_arts.fld_parse(show)
+    assert len(ents) == 158 and game_arts.fld_pack(ents, 2048) == show
+    for entry, (block, _) in saturn_credits.ENDINGS.items():
+        head, blocks, order = game_arts.container_parse(ents[entry])
+        assert game_arts.container_pack(head, blocks, order) == ents[entry]
+        assert game_arts.scene_pack(game_arts.scene_parse(blocks[block])) == blocks[block]
+    assert game_arts.scene_pack(game_arts.scene_parse(effect)) == effect
+    print('PASS Game Arts LZSS/map units + PUYOSHOW.FLD/EFFECT.DAT byte-exact repack')
+
+
 def test_real_disc():
     if not os.path.isfile(SATURN_BIN):
         print('SKIP real Saturn disc tests (Track 1 .bin not found)')
@@ -563,6 +588,14 @@ def test_real_disc():
                     assert all(nr[:2] == or_[:2] and nr[62:] == or_[62:] for nr, or_ in zip(new_c, orig_c))
                     assert all(new_c[i][j] == 1 for i in (2, 61) for j in range(2, 62))
                     assert all(new_c[j][i] == 1 for i in (2, 61) for j in range(2, 62))
+            elif name == 'PUYOSHOW.FLD':
+                # staff roll: each ending entry fits its 832 KB work RAM slot, credit maps stay 40x50
+                show = game_arts.fld_parse(data)
+                for entry, (block, first) in saturn_credits.ENDINGS.items():
+                    assert len(show[entry]) <= 851968
+                    scene = game_arts.scene_parse(game_arts.container_parse(show[entry])[1][block])
+                    for p in range(saturn_credits.PAGES):
+                        assert game_arts.map_decode(scene['parts'][first + p], 0)[:2] == (40, 50)
             elif name != '0':
                 assert len(data) <= saturn_arch.LOW_WRAM_SLOT
                 unpacked[name] = saturn_arch.unpack_bank(data)
@@ -631,5 +664,6 @@ if __name__ == '__main__':
     test_lzss_arch_and_vdp1_units()
     test_sh2_text_put_sim()
     test_saturn_ui_units()
+    test_game_arts()
     test_real_disc()
     print('All Saturn tests passed (stdlib-only).')

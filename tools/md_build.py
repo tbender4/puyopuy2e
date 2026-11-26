@@ -12,7 +12,7 @@ ROOT = os.path.join(HERE, '..')
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(ROOT, 'text'))
 sys.path.insert(0, os.path.join(ROOT, 'font'))
-import font, gfx, labels, levels, logo, md_screens, png, script_en, text, titles
+import font, gfx, labels, levels, logo, md_credits, md_screens, png, script_en, text, titles
 from build import jmp, patch_file
 
 # Bank 0x090000 (font offset must be a 16-bit offset in bank 0x090000; free 0xff from 0x993bf)
@@ -184,6 +184,7 @@ def build(prog, logo_mode=logo.DEFAULT_MODE):
     labels.apply_aids(streams)
     at = _apply_levels(prog, streams, at, DATA_END)
     at = md_screens.apply(prog, streams, at, DATA_END)
+    at = md_credits.apply(prog, streams, at, DATA_END)
     print('MD extra data total: %d bytes (ends at 0x%06x)' % (at - DATA_AT, at))
     streams.write()
     update_md_checksum(prog)

@@ -10,7 +10,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(ROOT, 'font'))
 sys.path.insert(0, os.path.join(ROOT, 'text'))
-import font, gfx, labels, levels, logo, md_screens, png, saturn_arch, saturn_iso, saturn_ui, script_en, text, title_font, titles
+import font, game_arts, gfx, labels, levels, logo, md_screens, png, saturn_arch, saturn_credits, saturn_iso, saturn_ui, script_en, text, title_font, titles
 
 RAM_BASE = 0x06008000
 TEXT_PUT = 0x009488
@@ -425,6 +425,7 @@ def build(src_bin, logo_mode=logo.DEFAULT_MODE):
         prog = bytearray(saturn_iso.read_iso_file(f, '0', entries))
         hp = saturn_arch.unpack_hpuyodt(saturn_iso.read_iso_file(f, 'H_PUYODT.BIN', entries))
         banks = {name: saturn_arch.unpack_bank(saturn_iso.read_iso_file(f, name, entries)) for name in TARGET_BANKS}
+        puyoshow = saturn_iso.read_iso_file(f, 'PUYOSHOW.FLD', entries)
 
     # 1. /0;1 in-place ASCII strings + Milestone B SH-2 8x16 tutorial text engine & font
     _apply_strings(prog)
@@ -502,7 +503,12 @@ def build(src_bin, logo_mode=logo.DEFAULT_MODE):
     saturn_ui.apply_demo_g02_start(banks['DEMO_G02.BIN']['chunks'][12], banks['DEMO_G02.BIN']['chunks'][13])
     saturn_ui.apply_demo_g02_nomi(banks['DEMO_G02.BIN']['chunks'][12])
 
-    out = {'0': bytes(prog), 'H_PUYODT.BIN': saturn_arch.pack_hpuyodt(hp)}
+    # 6. Milestone D: Game Arts files (PUYOSHOW.FLD staff roll)
+    show = game_arts.fld_parse(puyoshow)
+    saturn_credits.apply(show)
+
+    out = {'0': bytes(prog), 'H_PUYODT.BIN': saturn_arch.pack_hpuyodt(hp),
+           'PUYOSHOW.FLD': game_arts.fld_pack(show, struct.unpack_from('>I', puyoshow, 0)[0])}
     for name in TARGET_BANKS:
         out[name] = saturn_arch.pack_bank(banks[name])
     return out

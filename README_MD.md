@@ -64,10 +64,9 @@ next to the input. `--logo` picks the title logo as for the other versions
 - Rule Edit menu and the rule editor (all settings and the nuisance hardness labels)
 - `GAME OPTION` and the ending record romaji (`RULE SET`, `OFFSET`, `CHAIN LIMIT`,
   `MAX CHAIN`)
-
-## Not translated
-
-- The Japanese names in the ending staff roll, as in the arcade translation
+- ending staff roll: every Japanese name romanized as [MobyGames](https://www.mobygames.com/game/13047/puyo-puyo-2/credits/genesis/)
+  credits it (`MOO Niitani`, `Jemini Hirono`, `Tsuyoshi Matsushima`, ...); the credited
+  aliases are kept as aliases
 
 ## Screenshots
 
@@ -84,3 +83,4 @@ next to the input. `--logo` picks the title logo as for the other versions
 | Options | ![](screenshots/md/options_jp.png) | ![](screenshots/md/options_en.png) |
 | Tutorial | ![](screenshots/md/tutorial_jp.png) | ![](screenshots/md/tutorial_en.png) |
 | Tutorial | ![](screenshots/md/tutorial2_jp.png) | ![](screenshots/md/tutorial2_en.png) |
+| Staff roll | ![](screenshots/md/credits_jp.png) | ![](screenshots/md/credits_en.png) |

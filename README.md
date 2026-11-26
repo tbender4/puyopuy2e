@@ -238,6 +238,10 @@ Technical notes on the game: [docs/notes.md](docs/notes.md).
 
 - Translation and hacking: Zanac (Vanni Brutto).
 - Character names: from the Super Puyo Puyo 2 English translation by J2e Translations.
+- Staff names (Mega Drive and Saturn staff rolls): romanized as
+  [MobyGames](https://www.mobygames.com/game/13047/puyo-puyo-2/credits/) credits them,
+  cross-checked with the [raido.moe](http://raido.moe/staff/md/md_puyo_puyo_2.html) staff
+  pages and [VGMdb](https://vgmdb.net/product/13206).
 - Text font: [Spleen](https://github.com/fcambus/spleen) 8x16 by Frederic Cambus, BSD
   2-clause license (`font/LICENSE-spleen`).
 - Title logo: the "Puyo Puyo" lettering is cut from `assets/puyopuyo_logo.jpg`
