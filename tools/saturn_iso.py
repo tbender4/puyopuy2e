@@ -262,8 +262,10 @@ def patch_iso(src_bin, out_bin, replacements, out_cue=None, fresh=True):
             if dsec not in dir_cache:
                 dir_cache[dsec] = bytearray(_read_sector_user(of, dsec))
             doff = ent['dir_off']
-            struct.pack_into('<I', dir_cache[dsec], doff + 10, len(new_data))
-            struct.pack_into('>I', dir_cache[dsec], doff + 14, len(new_data))
+            # keep the original size when a file shrinks: MAME's Saturn CD loader hangs on a shrunk H_PUYODT.BIN
+            size = max(len(new_data), ent['size'])
+            struct.pack_into('<I', dir_cache[dsec], doff + 10, size)
+            struct.pack_into('>I', dir_cache[dsec], doff + 14, size)
             summary[key] = {'lba': lba, 'old_size': ent['size'], 'new_size': len(new_data), 'sectors': orig_sectors}
 
         for dsec, sec_buf in dir_cache.items():

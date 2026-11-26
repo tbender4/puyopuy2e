@@ -91,6 +91,7 @@ def test_mode1_and_iso_patcher():
             out_cue = os.path.join(out_dir, 'MOD.cue')
 
             # 1. Fresh build from read-only source, shrinking A.BIN 3 -> 1 sector + .cue & Track 2
+            #    (a shrunk file keeps its original recorded size, zero-padded)
             saturn_iso.patch_iso(src_bin, out_bin, {'a.bin;1': b'X' * 1000}, out_cue=out_cue)
             assert os.path.isfile(os.path.join(out_dir, 'DISC (Track 2).bin'))
             with open(out_cue, encoding='utf-8') as cf:
@@ -99,7 +100,7 @@ def test_mode1_and_iso_patcher():
             assert 'FILE "MOD (Track 1).bin" BINARY' in cue_out
             with open(out_bin, 'rb') as f:
                 ents = saturn_iso.parse_iso(f)
-                assert saturn_iso.read_iso_file(f, 'A.BIN', ents) == b'X' * 1000
+                assert saturn_iso.read_iso_file(f, 'A.BIN', ents) == b'X' * 1000 + bytes(4000)
                 assert saturn_iso.read_iso_file(f, 'B.BIN', ents) == b'B' * 3000
                 for lba in (20, 22, 23, 24):
                     f.seek(lba * 2352)
@@ -112,8 +113,8 @@ def test_mode1_and_iso_patcher():
             saturn_iso.patch_iso(src_bin, out_bin, {'B.BIN': b''}, fresh=False)
             with open(out_bin, 'rb') as f:
                 ents = saturn_iso.parse_iso(f)
-                assert saturn_iso.read_iso_file(f, 'A.BIN', ents) == b'X' * 1000
-                assert saturn_iso.read_iso_file(f, 'B.BIN', ents) == b''
+                assert saturn_iso.read_iso_file(f, 'A.BIN', ents) == b'X' * 1000 + bytes(4000)
+                assert saturn_iso.read_iso_file(f, 'B.BIN', ents) == bytes(3000)
 
             # 3. Incremental overlay can grow A.BIN back up to src_bin's original 3-sector cap (6144 B)
             saturn_iso.patch_iso(src_bin, out_bin, {'A.BIN': b'Z' * 6000}, fresh=False)
@@ -124,7 +125,7 @@ def test_mode1_and_iso_patcher():
             saturn_iso.patch_iso(src_bin, out_bin, {'A.BIN': b'Q' * 500})
             with open(out_bin, 'rb') as f:
                 ents = saturn_iso.parse_iso(f)
-                assert saturn_iso.read_iso_file(f, 'A.BIN', ents) == b'Q' * 500
+                assert saturn_iso.read_iso_file(f, 'A.BIN', ents) == b'Q' * 500 + bytes(4500)
                 assert saturn_iso.read_iso_file(f, 'B.BIN', ents) == b'B' * 3000
 
             # 5. Guardrails: overflow, overwrite src bin (incl. different casing), overwrite src cue (no orphan bin), bad cue dir
