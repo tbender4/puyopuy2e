@@ -322,7 +322,7 @@ def _stamp_card(img, sprite, y0):
 
 
 def _patch_difficulty_cards(tiles, tmap):
-    """Translate Japanese text inside Practice (6,7) and Normal (16,7) art cards; keep iconic Tsuu kanji."""
+    """Translate the Japanese titles of the Practice (6,7), Normal (16,7) and Tsuu (26,7) art cards."""
     # 1. Practice card: remove 'れんしゅう' while preserving Arle's full hair/ponytail silhouette & solid outlines
     prac = gfx.block_pixels(tiles, tmap, (7 * 40 + 6) * 2, 8, 8, 40)
     prac_keep = {
@@ -428,6 +428,74 @@ def _patch_difficulty_cards(tiles, tmap):
         norm[y][x] = 1
     _stamp_card(norm, _render_card_word('NORMAL', 8, 10, 1, (15, 12, 12, 12, 9, 9)), 3)
     gfx.replace_block(tiles, tmap, (7 * 40 + 16) * 2, 8, 8, norm, row_stride=40, blank=0)
+
+    # 3. Tsuu card: the kanji is cut out of a red/orange/yellow/white (5/9/12/15) burst converging at
+    # (29, 36). Refill the whole burst along its own rays, keep Arle, Carbuncle and the pedestal, letter
+    # TSUU across the top in white with a grey-blue base, and restore the thin inner black border the
+    # big kanji had replaced (the Practice and Normal cards keep theirs).
+    tsuu = gfx.block_pixels(tiles, tmap, (7 * 40 + 26) * 2, 8, 8, 40)
+    burst = {5, 9, 12, 15}
+    inner = [(x, y) for y in range(3, 61) for x in range(3, 61)]
+
+    def near(mask, x, y):
+        return [mask[y + dy][x + dx] for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dx or dy]
+
+    def outside(mask, seeds, box):
+        """pixels reachable from seeds through pixels not in mask, inside box (x0, y0, x1, y1)"""
+        x0, y0, x1, y1 = box
+        seen, todo = set(), list(seeds)
+        while todo:
+            x, y = todo.pop()
+            if (x, y) in seen or not (x0 <= x < x1 and y0 <= y < y1) or mask(x, y):
+                continue
+            seen.add((x, y))
+            todo += [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
+        return seen
+
+    # Arle and the pedestal: their own colours, white/yellow pixels mostly surrounded by them, the black
+    # outline touching them, and any hole inside that silhouette
+    keep = [[v not in burst | {0, 1} for v in row] for row in tsuu]
+    for _ in range(3):
+        keep = [[keep[y][x] or (0 < x < 63 and 0 < y < 63 and tsuu[y][x] in burst and sum(near(keep, x, y)) >= 4)
+                 for x in range(64)] for y in range(64)]
+    keep = [[keep[y][x] or (0 < x < 63 and 0 < y < 63 and tsuu[y][x] == 1 and any(near(keep, x, y)))
+             for x in range(64)] for y in range(64)]
+    free = outside(lambda x, y: keep[y][x], [(3, 3)], (3, 3, 61, 61))
+    for x, y in inner:
+        keep[y][x] = keep[y][x] or (x, y) not in free
+    # Carbuncle is drawn in the burst colours: keep whatever its black outline encloses, and that outline
+    box = (3, 40, 23, 58)
+    edge = [(x, y) for x in range(3, 23) for y in (40, 57)] + [(x, y) for y in range(40, 58) for x in (3, 22)]
+    out = outside(lambda x, y: tsuu[y][x] == 1, edge, box)
+    cb = {(x, y) for x in range(3, 23) for y in range(40, 58) if (x, y) not in out and tsuu[y][x] != 1}
+    for x in range(3, 23):
+        for y in range(40, 58):
+            if (x, y) in cb or (tsuu[y][x] == 1 and any((x + dx, y + dy) in cb for dx in (-1, 0, 1) for dy in (-1, 0, 1))):
+                keep[y][x] = True
+
+    new = [row[:] for row in tsuu]
+    for x, y in inner:
+        if keep[y][x]:
+            continue
+        dx, dy = x - 29, y - 36
+        ln = math.hypot(dx, dy) or 1
+        for step in range(80):                       # nearest burst pixel along the ray through (x, y)
+            hit = next((tsuu[yy][xx] for s in (1, -1)
+                        for xx, yy in [(round(x + s * dx / ln * step / 2), round(y + s * dy / ln * step / 2))]
+                        if 3 <= xx < 61 and 3 <= yy < 61 and tsuu[yy][xx] in burst), None)
+            if hit:
+                new[y][x] = hit
+                break
+    word = _render_card_word('TSUU', 12, 15, 1, (15, 15, 15, 15, 15, 14, 14, 14), outline=1)
+    word = labels.ring(word, 1, set(range(1, 16)))   # 2 px black outline over the busy burst
+    for y, row in enumerate(word):
+        for x, v in enumerate(row):
+            xx, yy = (64 - len(row)) // 2 + x, 2 + y
+            if v and 3 <= xx < 61 and 3 <= yy < 61 and not keep[yy][xx]:
+                new[yy][xx] = v
+    for i in range(2, 62):
+        new[2][i] = new[61][i] = new[i][2] = new[i][61] = 1
+    gfx.replace_block(tiles, tmap, (7 * 40 + 26) * 2, 8, 8, new, row_stride=40, blank=0)
 
 
 def apply_hpuyodt(hp):

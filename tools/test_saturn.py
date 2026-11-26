@@ -553,13 +553,16 @@ def test_real_disc():
                 assert len(data) <= saturn_arch.LOW_WRAM_SLOT
                 hp_new = saturn_arch.unpack_hpuyodt(data)
                 assert [len(c) for c in hp_new['chunks']] == orig_hp_lens
-                # Verify Practice (6,7) & Normal (16,7) cards translated with intact borders, Tsuu (26,7) untouched
-                for cx, expect_same in ((6, False), (16, False), (26, True)):
+                # Verify the Practice (6,7), Normal (16,7) and Tsuu (26,7) cards are translated with intact borders
+                for cx, expect_same in ((6, False), (16, False), (26, False)):
                     orig_c = gfx.block_pixels(hp['chunks'][19], hp['chunks'][20], (7 * 40 + cx) * 2, 8, 8, 40)
                     new_c = gfx.block_pixels(hp_new['chunks'][19], hp_new['chunks'][20], (7 * 40 + cx) * 2, 8, 8, 40)
                     assert (new_c == orig_c) == expect_same
-                    assert new_c[:3] == orig_c[:3] and new_c[61:] == orig_c[61:]
-                    assert all(nr[:3] == or_[:3] and nr[61:] == or_[61:] for nr, or_ in zip(new_c, orig_c))
+                    # outer frame untouched, inner border a solid black line (restored on Tsuu)
+                    assert new_c[:2] == orig_c[:2] and new_c[62:] == orig_c[62:]
+                    assert all(nr[:2] == or_[:2] and nr[62:] == or_[62:] for nr, or_ in zip(new_c, orig_c))
+                    assert all(new_c[i][j] == 1 for i in (2, 61) for j in range(2, 62))
+                    assert all(new_c[j][i] == 1 for i in (2, 61) for j in range(2, 62))
             elif name != '0':
                 assert len(data) <= saturn_arch.LOW_WRAM_SLOT
                 unpacked[name] = saturn_arch.unpack_bank(data)
