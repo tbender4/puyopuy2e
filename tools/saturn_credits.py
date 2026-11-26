@@ -2,7 +2,7 @@
 scene blocks of PUYOSHOW.FLD, redrawn in English. Roles and names as MobyGames credits them
 (Saturn credits page); credited aliases stay aliases, in western order."""
 import game_arts as ga
-import md_credits
+import gfx, md_credits
 
 # PUYOSHOW entry -> (scene block index in the container, first credit map part)
 ENDINGS = {149: (5, 10), 151: (1, 7), 153: (3, 9), 155: (5, 12)}
@@ -117,7 +117,7 @@ def apply(puyoshow_ents):
                 for tx in range(W):
                     block8 = [row[tx * 8:tx * 8 + 8] for row in img[(p * H + ty) * 8:(p * H + ty) * 8 + 8]]
                     data = bytearray(32)
-                    md_credits.gfx.tile_put(data, 0, block8)
+                    gfx.tile_put(data, 0, block8)
                     key = bytes(data)
                     if key not in made:
                         assert free, 'staff roll: not enough free tiles in PUYOSHOW %d' % entry

@@ -21,12 +21,12 @@ A raw `.bin`/`.cue` dump with two tracks; only Track 1 is changed:
 Each [release](https://github.com/tbender4/puyopuy2e/releases) has
 `puyopuy2e-saturn-no-red-puyos.bps` and a patcher for convenience.
 
-#### Linux/macOS
+### Linux/macOS
 ```sh
 ./patch.sh "PUYO_PUYO_TSU____ (Track 1).bin" puyopuy2e-saturn-no-red-puyos.bps
 ```
 
-#### Windows
+### Windows
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\patch.ps1 "PUYO_PUYO_TSU____ (Track 1).bin" puyopuy2e-saturn-no-red-puyos.bps
 ```
@@ -52,7 +52,7 @@ inside its original disc sectors, so the image keeps its size and layout.
 
 ## What is translated
 
-#### Shared with the arcade and Mega Drive versions
+### Shared with the arcade and Mega Drive versions
 - title logo
 - the 12 attract tutorial pages
 - gameplay HUD (`CHAIN`, `OFFSET`, `K.O.`, `YAY!`)
@@ -61,7 +61,7 @@ inside its original disc sectors, so the image keeps its size and layout.
 - mode select (`CHOOSE A MODE!`, with the Saturn-only fourth mode, `ENDLESS PUYO`)
 - options romaji (`RULE SET`, `OFFSET`).
 
-#### Saturn only
+### Saturn only
 - The 1P difficulty cards and their descriptions (`PRACTICE`, `NORMAL`, `TSUU`)
 - Save file select (`NEW GAME` slots), delete data, and the backup RAM and controller
   messages
@@ -72,13 +72,16 @@ inside its original disc sectors, so the image keeps its size and layout.
 - The ending staff roll: roles and every name as [MobyGames](https://www.mobygames.com/game/13047/puyo-puyo-2/credits/sega-saturn/)
   credits them (credited aliases kept as aliases)
 
-## Not translated yet
+#### Cutscenes (Game Arts files, Milestone D)
+- The Act Against AIDS card (`COURAGE AND LOVE` and its three lines)
+- Nomi's signs (`I AM HERE`, `I SAID I'M HERE!`, `SHOULD BE HERE`, `FOUND IT!`, `MAYBE I'M HERE`)
+- Cockadoodle's two captions, and `THIRTY MINUTES / LATER` for `30分経過`
+- Schezo's ヘンタイ / タイヘン signs keep the Japanese (the swap is the joke) with `PERVERT` /
+  `TERRIBLE` under them
 
-These are Game Arts' own files, in other formats, planned as Milestone D:
+## Not translated
 
-- The voiced manzai skits between matches (their captions and sound-effect lettering)
-- The `30分経過` ("30 minutes later") caption
-- The Saturn Act Against AIDS card in attract mode
+- Sound-effect lettering in the skits (ざく, どかーん, グサッ, ガ〜ン, うわーん) keeps the Japanese art
 
 The voice audio and the FMV videos are left as they are.
 

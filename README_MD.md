@@ -20,12 +20,12 @@ A raw 2 MB dump (no header):
 Each [release](https://github.com/tbender4/puyopuy2e/releases) has
 `puyopuy2e-md-no-red-puyos.ips` and a patcher for convenience.
 
-#### Linux/macOS
+### Linux/macOS
 ```sh
 ./patch.sh "Puyo Puyo 2 (Japan) (v1.1).md" puyopuy2e-md-no-red-puyos.ips
 ```
 
-#### Windows
+### Windows
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\patch.ps1 "Puyo Puyo 2 (Japan) (v1.1).md" puyopuy2e-md-no-red-puyos.ips
 ```
@@ -48,7 +48,7 @@ next to the input. `--logo` picks the title logo as for the other versions
 
 ## What is translated
 
-#### Shared with the arcade and Saturn versions
+### Shared with the arcade and Saturn versions
 - title logo
 - the 58 character profile pages and the 12 attract tutorial pages
 - gameplay HUD (`CHAIN`, `OFFSET`, `K.O.`, `YAY!`)
@@ -56,7 +56,7 @@ next to the input. `--logo` picks the title logo as for the other versions
 - level select (`EXTRA MILD` ... `EXTRA HOT`)
 - Act Against AIDS (`COURAGE AND LOVE`)
 
-#### Mega Drive only
+### Mega Drive only
 - mode select (`CHOOSE A MODE!` and the three Carbuncle mouths: `1 PLAYER PUYO`,
   `2 PLAYER PUYO`, `OPTIONS`)
 - `PAUSE` and the 2P join-in banner (`CHALLENGER!`)

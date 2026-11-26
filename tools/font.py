@@ -2,7 +2,7 @@
 
 From Spleen 8x16 (font/spleen-8x16.bdf, BSD 2-clause, by Frederic Cambus), plus the corner
 brackets 『 』 the profiles put around a name, at the codes of '{' and '}'."""
-import os
+import functools, os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -28,6 +28,7 @@ def load_bdf(path):
     return glyphs
 
 
+@functools.lru_cache(None)
 def font():
     """{code: 16 row bytes} for the codes 0x20-0x7e"""
     bdf = load_bdf(os.path.join(HERE, '..', 'font', 'spleen-8x16.bdf'))

@@ -24,8 +24,8 @@ NAMES = {
     14: ('Kazuhiko Kitade', None),       # 北出和彦
     15: ('Kengo Morita', 8),             # 森田健吾 (24) + face
 }
-SHARED = {8: (9, 7)}
-MACRONS = {'ā': 'a', 'ō': 'o', 'ū': 'u', 'Ō': 'O'}   # Spleen has ASCII only    # group 8's columns 9.. reuse group 9's tiles from its column 7
+SHARED = {8: (9, 7)}    # group 8's columns 9.. reuse group 9's tiles from its column 7
+MACRONS = {'ā': 'a', 'ō': 'o', 'ū': 'u'}   # Spleen has ASCII only
 
 
 def _text(s):

@@ -13,7 +13,7 @@ sys.meta_path.insert(0, _BlockPIL())
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
-import game_arts, gfx, logo, lz, saturn_arch, saturn_build, saturn_credits, saturn_iso, saturn_ui
+import game_arts, gfx, logo, lz, saturn_arch, saturn_build, saturn_credits, saturn_cutscenes, saturn_iso, saturn_ui
 
 SATURN_BIN = os.path.join(ROOT, 'saturn', 'PUYO_PUYO_TSU____ (Track 1).bin')
 MD_ROM = os.path.join(ROOT, 'Puyo Puyo 2 (Japan) (v1.1).md')
@@ -478,7 +478,7 @@ def test_saturn_ui_units():
 def test_game_arts():
     """Game Arts codecs: synthetic LZSS/map round trips, then the real PUYOSHOW.FLD and
     EFFECT.DAT rebuilt byte for byte from their parsed parts."""
-    for data in (b'', b'a', bytes(5000), bytes(range(256)) * 40, os.urandom(3000) + bytes(3000)):
+    for data in (b'', b'a', bytes(5000), bytes(range(256)) * 40, os.urandom(3000) + bytes(3000), os.urandom(4090) * 2):
         assert game_arts.lzss_decompress(game_arts.lzss_compress(data))[0] == data
     cells = [0x00020001] * 70 + [0x00020002, 0x40020003] + [0] * 5
     w, h, back, _ = game_arts.map_decode(game_arts.map_encode(7, 11, cells), 0)
@@ -498,6 +498,25 @@ def test_game_arts():
         assert game_arts.scene_pack(game_arts.scene_parse(blocks[block])) == blocks[block]
     assert game_arts.scene_pack(game_arts.scene_parse(effect)) == effect
     print('PASS Game Arts LZSS/map units + PUYOSHOW.FLD/EFFECT.DAT byte-exact repack')
+
+
+def _check_redraw(old, new, parts, keep_rows=0):
+    """after redrawing map parts (an int or a set): every tile another map shows holds the same
+    pixels, and the first keep_rows cell rows of a single redrawn part look the same"""
+    parts = {parts} if isinstance(parts, int) else parts
+    t_old = game_arts.lzss_decompress(old['parts'][1])[0]
+    t_new = game_arts.lzss_decompress(new['parts'][1])[0]
+    for j, p in enumerate(old['parts'][2:], 2):
+        if j not in parts:
+            for c in saturn_credits._cells(p):
+                t = (c & 0x7fff) * 32
+                assert t_old[t:t + 32] == t_new[t:t + 32]
+    if not keep_rows:
+        return
+    part, = parts
+    w, h, c_old, _ = game_arts.map_decode(old['parts'][part], 0)
+    c_new = game_arts.map_decode(new['parts'][part], 0)[2]
+    assert saturn_cutscenes._map_pixels(t_old, w, h, c_old)[:8 * keep_rows] ==         saturn_cutscenes._map_pixels(t_new, w, h, c_new)[:8 * keep_rows]
 
 
 def test_real_disc():
@@ -561,6 +580,8 @@ def test_real_disc():
         orig_g04 = saturn_iso.read_iso_file(f, 'DEMO_G04.BIN', entries)
         orig_logo = bytes(saturn_arch.unpack_bank(orig_g04)['chunks'][7])
         orig_hp_lens = [len(c) for c in hp['chunks']]
+        orig_show = game_arts.fld_parse(saturn_iso.read_iso_file(f, 'PUYOSHOW.FLD', entries))
+        orig_effect = saturn_iso.read_iso_file(f, 'EFFECT.DAT', entries)
         orig_g01_b = saturn_arch.unpack_bank(saturn_iso.read_iso_file(f, 'DEMO_G01.BIN', entries))
         orig_g01_t6, orig_g01_m7 = bytes(orig_g01_b['chunks'][6]), bytes(orig_g01_b['chunks'][7])
         orig_g02_t12 = bytes(saturn_arch.unpack_bank(saturn_iso.read_iso_file(f, 'DEMO_G02.BIN', entries))['chunks'][12])
@@ -596,6 +617,24 @@ def test_real_disc():
                     scene = game_arts.scene_parse(game_arts.container_parse(show[entry])[1][block])
                     for p in range(saturn_credits.PAGES):
                         assert game_arts.map_decode(scene['parts'][first + p], 0)[:2] == (40, 50)
+                    # every tile a non-credit map shows is untouched
+                    old = game_arts.scene_parse(game_arts.container_parse(orig_show[entry])[1][block])
+                    _check_redraw(old, scene, set(range(first, first + saturn_credits.PAGES)))
+                # cutscenes: the AIDS card's art above the text is unchanged; Schezo's
+                # signs grow to 72x32 with their original pixels kept as a prefix
+                old = game_arts.scene_parse(game_arts.container_parse(orig_show[157])[1][0])
+                new = game_arts.scene_parse(game_arts.container_parse(show[157])[1][0])
+                _check_redraw(old, new, 2, keep_rows=18)    # the card's art above the text
+                t107, p107 = game_arts.sprites_parse(show[107])
+                o107 = game_arts.sprites_parse(orig_show[107])[1]
+                assert p107[:len(o107)] == o107
+                assert all(t107[k][1:3] == (72, 32) for k in (52, 53))
+                assert len(show[107]) <= 45056
+            elif name == 'EFFECT.DAT':
+                old = game_arts.scene_parse(orig_effect)
+                new = game_arts.scene_parse(data)
+                assert game_arts.map_decode(new['parts'][3], 0)[:2] == (64, 15)
+                _check_redraw(old, new, 3)
             elif name != '0':
                 assert len(data) <= saturn_arch.LOW_WRAM_SLOT
                 unpacked[name] = saturn_arch.unpack_bank(data)

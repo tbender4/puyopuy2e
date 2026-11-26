@@ -171,3 +171,39 @@ def fld_pack(ents, index_size):
         struct.pack_into('>II', out, 8 * k, len(out), len(e))
         out += e
     return bytes(out + pad(-len(out) % SECTOR))
+
+
+def sprites_parse(b):
+    """VDP1 sprite set (u16 colours, u16 n, u32 palette/table/LZSS offsets; table = n x
+    (u16 index, u32 colour bank, u16 w, u16 h, u16 address in 8-byte units), 4bpp linear):
+    (table [(bank, w, h, addr)], pixels bytearray)"""
+    n = struct.unpack_from('>H', b, 2)[0]
+    _, table, data = struct.unpack_from('>3I', b, 4)
+    ents = [struct.unpack_from('>HIHHH', b, table + 12 * k)[1:] for k in range(n)]
+    return ents, bytearray(lzss_decompress(b, data)[0])
+
+
+def sprites_pack(b, pixels):
+    """b with its LZSS sprite pixels replaced"""
+    data = struct.unpack_from('>I', b, 12)[0]
+    end = lzss_decompress(b, data)[1]
+    return bytes(b[:data]) + lzss_compress(bytes(pixels)) + bytes(b[end:])
+
+
+def sprites_palette(b):
+    """the sprite set's colours as (r, g, b), 0..31 each"""
+    ncol = struct.unpack_from('>H', b, 0)[0]
+    pal = struct.unpack_from('>I', b, 4)[0]
+    return [(v & 31, v >> 5 & 31, v >> 10 & 31) for v in struct.unpack_from('>%dH' % ncol, b, pal)]
+
+
+def sprites_resize(b, pixels, k, w, h, new_pixels):
+    """give sprite k a new size, its 4bpp pixels appended at the end of the set's pixel data"""
+    table = struct.unpack_from('>I', b, 8)[0]
+    b = bytearray(b)
+    pixels += bytes(-len(pixels) % 8)           # addresses count 8-byte units
+    addr = len(pixels) // 8
+    assert addr < 0x10000, 'sprite pixel data past the 16-bit address range'
+    pixels += new_pixels + bytes(-len(new_pixels) % 8)
+    struct.pack_into('>HHH', b, table + 12 * k + 6, w, h, addr)
+    return bytes(b)
