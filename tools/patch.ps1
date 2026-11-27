@@ -2,13 +2,13 @@
 .SYNOPSIS
   Apply Puyo Puyo 2 English patches (Mega Drive .ips, Arcade -ips.zip or Saturn .bps).
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File .\patch.ps1 "Puyo Puyo 2 (Japan) (v1.1).md" puyopuy2e-md-no-red-puyos.ips
+  powershell -ExecutionPolicy Bypass -File .\patch.ps1 "Puyo Puyo 2 (Japan) (v1.1).md" puyopuy2e-md-rcN.ips
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File .\patch.ps1 puyopuy2.zip puyopuy2e-arcade-no-red-puyos-ips.zip
+  powershell -ExecutionPolicy Bypass -File .\patch.ps1 puyopuy2.zip puyopuy2e-arcade-rcN-ips.zip
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File .\patch.ps1 puyopuy2.zip puyopuy2e-arcade-no-red-puyos-ips.zip -Mame
+  powershell -ExecutionPolicy Bypass -File .\patch.ps1 puyopuy2.zip puyopuy2e-arcade-rcN-ips.zip -Mame
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File .\patch.ps1 "PUYO_PUYO_TSU____ (Track 1).bin" puyopuy2e-saturn-no-red-puyos.bps
+  powershell -ExecutionPolicy Bypass -File .\patch.ps1 "PUYO_PUYO_TSU____ (Track 1).bin" puyopuy2e-saturn-rcN.bps
 #>
 param(
     [Parameter(Mandatory = $true, Position = 0)][string]$Rom,

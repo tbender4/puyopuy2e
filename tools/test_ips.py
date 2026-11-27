@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Stdlib-only regression tests for tools/ips.py, tools/bps.py, make_ips.py, and tools/release.py."""
-import io, json, os, shutil, subprocess, sys, tempfile, urllib.error, urllib.request, zipfile
+import contextlib, io, json, os, shutil, subprocess, sys, tempfile, urllib.error, urllib.request, zipfile
 from pathlib import Path
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -116,22 +116,22 @@ def test_git_changelog():
         (Path(td) / 'a.txt').write_text('1')
         git(td, 'add', 'a.txt')
         git(td, 'commit', '-m', 'Initial commit')
-        head, prev, commits = release.git_changelog(td)
-        assert head == 'Initial commit' and prev == '' and len(commits) == 1
+        prev, commits = release.git_changelog(td)
+        assert prev == '' and commits == ['Initial commit']
 
         git(td, 'tag', 'r20261124-0000001')
         (Path(td) / 'a.txt').write_text('2')
         git(td, 'commit', '-am', 'Fix Nomi icon arrow')
         (Path(td) / 'a.txt').write_text('3')
         git(td, 'commit', '-am', 'Add Mega Drive IPS patches')
-        head, prev, commits = release.git_changelog(td)
-        assert head == 'Add Mega Drive IPS patches'
+        prev, commits = release.git_changelog(td)
         assert prev == 'r20261124-0000001'
         assert commits == ['Add Mega Drive IPS patches', 'Fix Nomi icon arrow']
 
         notes = release.release_notes(
-            repo='me/repo', tag='r20261124-0000002', prev_tag=prev, commits=commits,
+            repo='me/repo', tag='r20261124-0000002', prev_tag=prev, commits=commits, updated=['Saturn RC2'],
         )
+        assert notes.startswith('**Updated:** Saturn RC2\n\n### Changes')
         assert '### Changes\n- Add Mega Drive IPS patches\n- Fix Nomi icon arrow' in notes
         assert '### Base ROMs required\n\n| Platform |' in notes
         assert '### Auto-patcher' in notes and '#### Windows (PowerShell)' in notes and '#### Linux / macOS' in notes
@@ -139,6 +139,69 @@ def test_git_changelog():
         assert '### GUI patcher' in notes and 'RomPatcher.js' in notes and 'Lunar IPS' not in notes
         assert 'https://github.com/me/repo/compare/r20261124-0000001...r20261124-0000002' in notes
     print('PASS git_changelog + release notes')
+
+
+def test_number_rcs():
+    def arcade(ips, script=b'sh'):
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as z:
+            z.writestr('epr-17241.ic32.ips', ips)
+            z.writestr('patch.sh', script)
+        return buf.getvalue()
+
+    def release_of(files):
+        with tempfile.TemporaryDirectory() as td:
+            for name, data in files.items():
+                (Path(td) / name).write_bytes(data)
+            rcs = release.number_rcs(td, prev[0])
+            new = release.new_files(td, prev[0])
+            prev[0] = {f.name: f.read_bytes() for f in Path(td).iterdir() if f.name != release.SUMS}
+            return rcs, sorted(f.name for f in Path(td).iterdir()), new
+
+    build = {'puyopuy2e-arcade-ips.zip': arcade(b'A'), 'puyopuy2e-md.ips': b'M',
+             'puyopuy2e-saturn.bps': b'S', 'patch.sh': b'sh'}
+    prev = [{'puyopuy2e-md-no-red-puyos.ips': b'M'}]   # a release from before RC numbering
+    rcs, names, _ = release_of(build)
+    assert rcs == {'arcade': (1, True), 'md': (1, True), 'saturn': (1, True)}, rcs
+    assert names == [release.SUMS, 'patch.sh', 'puyopuy2e-arcade-rc1-ips.zip',
+                     'puyopuy2e-md-rc1.ips', 'puyopuy2e-saturn-rc1.bps'], names
+    rcs, _, new = release_of(dict(build, **{'puyopuy2e-saturn.bps': b'S2'}))
+    assert rcs == {'arcade': (1, False), 'md': (1, False), 'saturn': (2, True)}, rcs
+    assert new == ['puyopuy2e-saturn-rc2.bps'], new
+    rcs, _, new = release_of(dict(build, **{'puyopuy2e-saturn.bps': b'S2'}))
+    assert new == [], new                       # nothing to publish
+    # patcher scripts (loose or inside the arcade zip) move no RC but are still published
+    rcs, _, new = release_of(dict(build, **{'puyopuy2e-saturn.bps': b'S2', 'patch.sh': b'sh2',
+                                            'puyopuy2e-arcade-ips.zip': arcade(b'A', b'sh2')}))
+    assert not any(changed for _, changed in rcs.values()), rcs
+    assert new == ['patch.sh', 'puyopuy2e-arcade-rc1-ips.zip'], new
+    rcs, _, _ = release_of(dict(build, **{'puyopuy2e-saturn.bps': b'S2', 'puyopuy2e-arcade-ips.zip': arcade(b'A2')}))
+    assert rcs['arcade'] == (2, True) and not rcs['saturn'][1], rcs
+    rcs, names, _ = release_of(dict(build, **{'puyopuy2e-saturn.bps': b'S2', 'puyopuy2e-arcade-ips.zip': arcade(b'A2'),
+                                           'puyopuy2e-md-with-red-puyos.ips': b'W'}))
+    assert rcs['md'] == (2, True) and 'puyopuy2e-md-rc2-with-red-puyos.ips' in names, (rcs, names)
+    print('PASS release candidate numbering')
+
+
+def test_previous_assets():
+    def rel(tag, sums=True, draft=False):
+        names = ['puyopuy2e-md-rc1.ips', 'patch.sh'] + ([release.SUMS] if sums else [])
+        return {'tag_name': tag, 'draft': draft,
+                'assets': [{'name': n, 'browser_download_url': f'https://dl/{tag}/{n}'} for n in names]}
+
+    listed = [rel('r6', draft=True), rel('r5'), rel('r4', sums=False), rel('r3'), rel('r2')]
+    orig_req, orig_open = release._gh_request, urllib.request.urlopen
+    release._gh_request = lambda *a, **k: listed
+    urllib.request.urlopen = lambda url, timeout=None: contextlib.closing(io.BytesIO(url.encode()))
+    try:
+        got = release.previous_assets('me/repo', 'r7', 'tok')                     # new tag: newest
+        assert got == {n: f'https://dl/r5/{n}'.encode() for n in ('puyopuy2e-md-rc1.ips', 'patch.sh')}, got
+        got = release.previous_assets('me/repo', 'r5', 'tok')                     # re-run: skips r4 (incomplete)
+        assert got == {n: f'https://dl/r3/{n}'.encode() for n in ('puyopuy2e-md-rc1.ips', 'patch.sh')}, got
+        assert release.previous_assets('me/repo', 'r2', 'tok') == {}              # nothing older
+    finally:
+        release._gh_request, urllib.request.urlopen = orig_req, orig_open
+    print('PASS previous release lookup')
 
 
 def test_publish_mock():
@@ -178,7 +241,10 @@ def test_publish_mock():
                 f2 = Path(td) / 'b.zip'
                 f1.write_bytes(b'PATCHEOF')
                 f2.write_bytes(b'PK')
-                url = release.publish_github_release('me/repo', kwargs.pop('tag'), [str(f1), str(f2)], 'tok', **kwargs)
+                f3 = Path(td) / release.SUMS
+                f3.write_text('sums')
+                url = release.publish_github_release('me/repo', kwargs.pop('tag'), [str(f3), str(f1), str(f2)],
+                                                     'tok', **kwargs)
                 assert url == 'https://example/rel'
         finally:
             urllib.request.urlopen = orig_open
@@ -192,19 +258,22 @@ def test_publish_mock():
         ('POST', 'https://api.github.com/repos/me/repo/releases', 'application/json'),
         ('POST', 'https://uploads.github.com/repos/me/repo/releases/42/assets?name=a.ips', 'application/octet-stream'),
         ('POST', 'https://uploads.github.com/repos/me/repo/releases/42/assets?name=b.zip', 'application/zip'),
+        ('POST', 'https://uploads.github.com/repos/me/repo/releases/42/assets?name=SHA256SUMS.txt', 'text/plain'),
     ], c_new
     assert len(p_new) == 1 and p_new[0].get('make_latest') == 'true', p_new
 
     # 2. Idempotent re-run on already-published revision (O(1) tag lookup -> PATCH + replace asset)
     pub_rel = [{'id': 42, 'tag_name': 'r20261124-abc1234', 'draft': False, 'html_url': 'https://example/rel',
-                'assets': [{'id': 99, 'name': 'a.ips'}]}]
+                'assets': [{'id': 99, 'name': 'a.ips'}, {'id': 98, 'name': release.SUMS}]}]
     c_upd, p_upd = run_case(pub_rel, tag='r20261124-abc1234', target='a' * 40)
     assert c_upd == [
         ('GET', 'https://api.github.com/repos/me/repo/releases/tags/r20261124-abc1234', None),
         ('PATCH', 'https://api.github.com/repos/me/repo/releases/42', 'application/json'),
+        ('DELETE', 'https://api.github.com/repos/me/repo/releases/assets/98', None),   # sums first: incomplete
         ('DELETE', 'https://api.github.com/repos/me/repo/releases/assets/99', None),
         ('POST', 'https://uploads.github.com/repos/me/repo/releases/42/assets?name=a.ips', 'application/octet-stream'),
         ('POST', 'https://uploads.github.com/repos/me/repo/releases/42/assets?name=b.zip', 'application/zip'),
+        ('POST', 'https://uploads.github.com/repos/me/repo/releases/42/assets?name=SHA256SUMS.txt', 'text/plain'),
     ], c_upd
     assert len(p_upd) == 1 and p_upd[0].get('make_latest') == 'true', p_upd
 
@@ -250,6 +319,8 @@ def main():
     test_ips_edge_cases()
     test_bps_edge_cases()
     test_git_changelog()
+    test_number_rcs()
+    test_previous_assets()
     test_publish_mock()
     test_rom_ips()
     print('All IPS tests passed (stdlib-only).')

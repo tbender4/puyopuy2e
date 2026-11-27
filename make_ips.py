@@ -18,6 +18,11 @@ def _script(name):
     return raw.replace(b'\r\n', b'\n') if name.endswith('.sh') else raw
 
 
+def _mode_suffix(mode):
+    """file name part for the logo mode: none for the default one"""
+    return '' if mode == logo.DEFAULT_MODE else f'-{mode}'
+
+
 def _arcade_readme(mode, even_crc, odd_crc):
     (ev_name, ev_crc), (od_name, od_crc) = romset.PROGRAM
     snd_name, snd_crc = romset.SOUND
@@ -29,8 +34,8 @@ def _arcade_readme(mode, even_crc, odd_crc):
         f'  {od_name:<15s} 524288 bytes  CRC32 {od_crc:08x}\n'
         f'  {snd_name:<15s} 524288 bytes  CRC32 {snd_crc:08x}  (unchanged)\n\n'
         f'Quick auto-patch (using the included scripts):\n'
-        f'  Windows:        powershell -ExecutionPolicy Bypass -File .\\patch.ps1 puyopuy2.zip puyopuy2e-arcade-{mode}-ips.zip\n'
-        f'  Linux / macOS:  ./patch.sh puyopuy2.zip puyopuy2e-arcade-{mode}-ips.zip\n'
+        f'  Windows:        powershell -ExecutionPolicy Bypass -File .\\patch.ps1 puyopuy2.zip <this zip>\n'
+        f'  Linux / macOS:  ./patch.sh puyopuy2.zip <this zip>\n'
         f'  (Add -Mame / --mame to keep epr-* filenames for upstream MAME; this writes\n'
         f'   puyopuy2-en.zip, which you rename to puyopuy2.zip in a separate ROM folder.)\n\n'
         f'Manual patching (Lunar IPS, Floating IPS / Flips, or RomPatcher.js):\n'
@@ -62,7 +67,7 @@ def build_arcade_ips(src_zip, out_dir, modes):
         assert ips.apply(orig_even, p_even) == new_even, f'arcade {mode}: even IPS verify failed'
         assert ips.apply(orig_odd, p_odd) == new_odd, f'arcade {mode}: odd IPS verify failed'
 
-        zname = f'puyopuy2e-arcade-{mode}-ips.zip'
+        zname = f'puyopuy2e-arcade{_mode_suffix(mode)}-ips.zip'
         zpath = os.path.join(out_dir, zname)
         readme = _arcade_readme(mode, got[0], got[1]).encode('utf-8')
         with zipfile.ZipFile(zpath, 'w', zipfile.ZIP_DEFLATED) as z:
@@ -91,7 +96,7 @@ def build_md_ips(src_md, out_dir, modes):
         built = bytes(md_build.build(orig, mode))
         patch = ips.encode(orig, built)
         assert ips.apply(orig, patch) == built, f'MD {mode}: IPS verify failed'
-        fname = f'puyopuy2e-md-{mode}.ips'
+        fname = f'puyopuy2e-md{_mode_suffix(mode)}.ips'
         fpath = os.path.join(out_dir, fname)
         Path(fpath).write_bytes(patch)
         crc = zlib.crc32(built)
@@ -117,7 +122,7 @@ def build_saturn_bps(src_bin, out_dir, modes):
                                  f'need {make_puyopuy2e_saturn.ORIG_CRC:08x})')
             with open(os.path.join(td, 'check.bin'), 'w+b') as cf:
                 bps.apply(src, patch, cf)   # raises unless the result matches the target CRC32
-            fname = f'puyopuy2e-saturn-{mode}.bps'
+            fname = f'puyopuy2e-saturn{_mode_suffix(mode)}.bps'
             fpath = os.path.join(out_dir, fname)
             Path(fpath).write_bytes(patch)
             print(f'verified {fname} ({len(patch)} bytes, patched Track 1 CRC32 {crc:08x})')

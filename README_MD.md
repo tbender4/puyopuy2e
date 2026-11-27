@@ -18,16 +18,16 @@ A raw 2 MB dump (no header):
 ## Patch
 
 Each [release](https://github.com/tbender4/puyopuy2e/releases) has
-`puyopuy2e-md-no-red-puyos.ips` and a patcher for convenience.
+`puyopuy2e-md-rcN.ips` (N: the release candidate number) and a patcher for convenience.
 
 ### Linux/macOS
 ```sh
-./patch.sh "Puyo Puyo 2 (Japan) (v1.1).md" puyopuy2e-md-no-red-puyos.ips
+./patch.sh "Puyo Puyo 2 (Japan) (v1.1).md" puyopuy2e-md-rcN.ips
 ```
 
 ### Windows
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\patch.ps1 "Puyo Puyo 2 (Japan) (v1.1).md" puyopuy2e-md-no-red-puyos.ips
+powershell -ExecutionPolicy Bypass -File .\patch.ps1 "Puyo Puyo 2 (Japan) (v1.1).md" puyopuy2e-md-rcN.ips
 ```
 
 Both write `Puyo Puyo 2 (English) (v1.1).md` next to the original.

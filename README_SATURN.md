@@ -19,16 +19,16 @@ A raw `.bin`/`.cue` dump with two tracks; only Track 1 is changed:
 ## Patch
 
 Each [release](https://github.com/tbender4/puyopuy2e/releases) has
-`puyopuy2e-saturn-no-red-puyos.bps` and a patcher for convenience.
+`puyopuy2e-saturn-rcN.bps` (N: the release candidate number) and a patcher for convenience.
 
 ### Linux/macOS
 ```sh
-./patch.sh "PUYO_PUYO_TSU____ (Track 1).bin" puyopuy2e-saturn-no-red-puyos.bps
+./patch.sh "PUYO_PUYO_TSU____ (Track 1).bin" puyopuy2e-saturn-rcN.bps
 ```
 
 ### Windows
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\patch.ps1 "PUYO_PUYO_TSU____ (Track 1).bin" puyopuy2e-saturn-no-red-puyos.bps
+powershell -ExecutionPolicy Bypass -File .\patch.ps1 "PUYO_PUYO_TSU____ (Track 1).bin" puyopuy2e-saturn-rcN.bps
 ```
 
 Both write `Puyo Puyo 2 (English) (Track 1).bin` and `Puyo Puyo 2 (English).cue` next to

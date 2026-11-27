@@ -2,9 +2,9 @@
 # Apply Puyo Puyo 2 English patches (Mega Drive .ips, Arcade -ips.zip or Saturn .bps).
 # Pure POSIX sh + coreutils (od/awk/dd/tr; unzip/zip for arcade; perl or python3 for Saturn CRC32 checks).
 # Usage:
-#   ./patch.sh "Puyo Puyo 2 (Japan) (v1.1).md" puyopuy2e-md-no-red-puyos.ips [out.md]
-#   ./patch.sh puyopuy2.zip puyopuy2e-arcade-no-red-puyos-ips.zip [out.zip] [--mame]
-#   ./patch.sh "PUYO_PUYO_TSU____ (Track 1).bin" puyopuy2e-saturn-no-red-puyos.bps [out.bin]
+#   ./patch.sh "Puyo Puyo 2 (Japan) (v1.1).md" puyopuy2e-md-rcN.ips [out.md]
+#   ./patch.sh puyopuy2.zip puyopuy2e-arcade-rcN-ips.zip [out.zip] [--mame]
+#   ./patch.sh "PUYO_PUYO_TSU____ (Track 1).bin" puyopuy2e-saturn-rcN.bps [out.bin]
 set -eu
 
 MAME=0

@@ -1,19 +1,81 @@
 #!/usr/bin/env python3
 """tools/release.py - Publish a directory of built IPS/BPS artifacts to GitHub Releases.
 
+Each platform's patches carry a release candidate number (puyopuy2e-<platform>-rcN...) that goes
+up by one only when that platform's patches differ from the previous release's.
 Only the Python 3 standard library is used. Reads GITHUB_TOKEN from the environment."""
-import argparse, json, os, subprocess, sys, urllib.error, urllib.parse, urllib.request
+import argparse, hashlib, io, json, os, re, subprocess, sys, urllib.error, urllib.parse, urllib.request, zipfile
 from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 sys.path.insert(0, ROOT)
-import make_puyopuy2e_md, make_puyopuy2e_saturn, romset
+import make_ips, make_puyopuy2e_md, make_puyopuy2e_saturn, romset
 
 API_BASE = 'https://api.github.com'
 UPLOAD_BASE = 'https://uploads.github.com'
 HTTP_TIMEOUT = 60
+PLATFORMS = {'arcade': 'Arcade', 'md': 'Mega Drive', 'saturn': 'Saturn'}
+PATCH_NAME = re.compile(r'puyopuy2e-(arcade|md|saturn)(?:-rc(\d+))?([-.].+)')
+SUMS = 'SHA256SUMS.txt'
+
+
+def patch_key(name, data):
+    """what makes a patch count as changed: its bytes, or for the arcade zip only its .ips files
+    (its README.txt and patcher scripts don't move the arcade RC)"""
+    if not name.endswith('.zip'):
+        return hashlib.sha256(data).hexdigest()
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        return ' '.join(n + ':' + hashlib.sha256(z.read(n)).hexdigest()
+                        for n in sorted(z.namelist()) if n.endswith('.ips'))
+
+
+def number_rcs(dist, prev=None):
+    """Rename dist's patches to puyopuy2e-<platform>-rcN<rest> and rewrite SHA256SUMS.txt.
+    prev is the previous release's {asset name: bytes}; returns {platform: (N, changed)}."""
+    prev_rc, prev_key = {}, {}
+    for name, data in (prev or {}).items():
+        m = PATCH_NAME.fullmatch(name)
+        if m and m[2]:          # releases before RC numbering count as no release
+            prev_rc[m[1]] = max(prev_rc.get(m[1], 0), int(m[2]))
+            prev_key[m[1], m[3]] = patch_key(name, data)
+    dist = Path(dist)
+    patches = {}
+    for f in sorted(dist.iterdir()):
+        m = PATCH_NAME.fullmatch(f.name)
+        if m:
+            patches.setdefault(m[1], []).append((f, m[3]))
+    rcs = {}
+    for plat, items in patches.items():
+        changed = any(prev_key.get((plat, rest)) != patch_key(f.name, f.read_bytes()) for f, rest in items)
+        rc = prev_rc.get(plat, 0) + changed
+        for f, rest in items:
+            f.rename(dist / f'puyopuy2e-{plat}-rc{rc}{rest}')
+        rcs[plat] = (rc, changed)
+    make_ips.write_checksums(dist, sorted(str(f) for f in dist.iterdir() if f.name != SUMS))
+    return rcs
+
+
+def new_files(dist, prev):
+    """names of dist's files that the previous release ({name: bytes}) lacks or has with other bytes;
+    a patcher script fix is published even when no RC moves"""
+    return [f.name for f in sorted(Path(dist).iterdir()) if f.name != SUMS and prev.get(f.name) != f.read_bytes()]
+
+
+def previous_assets(repo, tag, token):
+    """{name: bytes} of the files (all but SHA256SUMS.txt) of the newest published release older
+    than tag that is complete (has SHA256SUMS.txt, which is uploaded last); {} if none"""
+    releases = [r for r in _gh_request('GET', f'{API_BASE}/repos/{repo}/releases?per_page=30', token)
+                if not r.get('draft')]      # newest first; a re-run of an older tag skips the newer ones
+    start = next((i + 1 for i, r in enumerate(releases) if r.get('tag_name') == tag), 0)
+    rel = next((r for r in releases[start:] if any(a['name'] == SUMS for a in r.get('assets', ()))), None)
+    out = {}
+    for a in (rel or {}).get('assets', ()):
+        if a['name'] != SUMS:
+            with urllib.request.urlopen(a['browser_download_url'], timeout=HTTP_TIMEOUT) as resp:
+                out[a['name']] = resp.read()
+    return out
 
 
 def _git(cwd, *args):
@@ -25,8 +87,7 @@ def _git(cwd, *args):
 
 
 def git_changelog(cwd=ROOT):
-    """Return (head_subject, prev_tag, [subject, ...]) since the previous git tag."""
-    head = _git(cwd, 'log', '-1', '--format=%s', 'HEAD')
+    """Return (prev_tag, [subject, ...]) since the previous git tag."""
     prev_tag = _git(cwd, 'describe', '--tags', '--abbrev=0', 'HEAD^')
     rev_range = f'{prev_tag}..HEAD' if prev_tag else 'HEAD'
     log_args = ['log', '--no-merges', '--format=%s']
@@ -36,12 +97,12 @@ def git_changelog(cwd=ROOT):
     if not raw:
         raw = _git(cwd, 'log', '-n', '1', '--format=%s', 'HEAD')
     commits = [line for line in raw.splitlines() if line]
-    return head, prev_tag, commits
+    return prev_tag, commits
 
 
-def release_notes(repo=None, tag=None, prev_tag='', commits=()):
+def release_notes(repo=None, tag=None, prev_tag='', commits=(), updated=()):
     """Format GitHub Release markdown from git commits and base ROM requirements."""
-    lines = []
+    lines = [f'**Updated:** {", ".join(updated)}', ''] if updated else []
     if commits:
         lines.append('### Changes')
         for subj in commits:
@@ -131,7 +192,10 @@ def publish_github_release(repo, tag, files, token, title=None, body='', draft=F
         print(f'updated GitHub release {tag} (id={rel["id"]}, draft={rel.get("draft")})')
 
     existing = {a['name']: a['id'] for a in rel.get('assets', ())}
-    for path in files:
+    # SHA256SUMS.txt goes first and comes back last: only a complete release has it (see previous_assets)
+    if SUMS in existing:
+        _gh_request('DELETE', f'{API_BASE}/repos/{repo}/releases/assets/{existing.pop(SUMS)}', token)
+    for path in sorted(files, key=lambda f: os.path.basename(f) == SUMS):
         name = os.path.basename(path)
         if name in existing:
             _gh_request('DELETE', f'{API_BASE}/repos/{repo}/releases/assets/{existing[name]}', token)
@@ -150,7 +214,6 @@ def main():
     p.add_argument('--dir', default=os.path.join(ROOT, 'dist'), help='directory of files to upload (default: dist)')
     p.add_argument('--tag', required=True, help='GitHub Release tag name')
     p.add_argument('--repo', required=True, help='GitHub repository OWNER/REPO')
-    p.add_argument('--title', help='GitHub release title (default: TAG - <HEAD commit subject>)')
     p.add_argument('--target', help='branch or commit SHA for GitHub release tag (default: repo default branch)')
     p.add_argument('--draft', action='store_true', help='create GitHub release as draft')
     args = p.parse_args()
@@ -161,14 +224,21 @@ def main():
     dist = Path(args.dir)
     if not dist.is_dir():
         raise SystemExit(f'artifact directory not found: {dist}')
-    files = sorted(str(f) for f in dist.iterdir() if f.is_file())
-    if not files:
+    if not any(f.is_file() for f in dist.iterdir()):
         raise SystemExit(f'no files to upload in {dist}')
 
-    head_subj, prev_tag, commits = git_changelog(ROOT)
-    title = args.title or (f'{args.tag} - {head_subj}' if head_subj else args.tag)
-    body = release_notes(repo=args.repo, tag=args.tag, prev_tag=prev_tag, commits=commits)
+    prev_tag, commits = git_changelog(ROOT)
     try:
+        prev = previous_assets(args.repo, args.tag, token)
+        rcs = number_rcs(dist, prev)
+        if not new_files(dist, prev):
+            print('nothing differs from the previous release: nothing to publish')
+            return
+        files = sorted(str(f) for f in dist.iterdir() if f.is_file())
+        labels = {p: f'{PLATFORMS[p]} RC{rcs[p][0]}' for p in PLATFORMS if p in rcs}
+        body = release_notes(repo=args.repo, tag=args.tag, prev_tag=prev_tag, commits=commits,
+                             updated=[labels[p] for p in labels if rcs[p][1]])
+        title = ' | '.join(labels.values())
         url = publish_github_release(
             args.repo, args.tag, files, token,
             title=title, body=body, draft=args.draft, target=args.target,
