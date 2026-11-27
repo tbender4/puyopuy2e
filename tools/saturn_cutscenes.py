@@ -326,7 +326,18 @@ def apply_schezo(ents, style=None):
 SUBTITLE_BOTTOM = (160, 218)                # bottom-centre of the SUBTITLES placement (lane 0; lane 1 above)
 SUBTITLE_IDS = (0x2F, 0x2E)                 # actor slots for the two lanes, free in every skit
 SUBTITLE_MARK = b'SB'                       # tells saturn_build.skit_hook that a script has subtitles
-FIRST_LENGTHS = {0x03: 8, 0x13: 3, 0x1B: 3, 0x3F: 2, 0x40: 6}   # lengths of the skits' first instructions
+# each lane's code starts: anchor bottom-centre (16 0E); sprite priority register 7 (1E 07, no script uses
+# it) set to priority 7 (1C 07 07): over the close-up layers (the endings leave every register at 4)
+SUBTITLE_PREFIX = b'\x16\x0e\x1e\x07\x1c\x07\x07'
+# the endings also blend every sprite (VDP2 colour calculation) at the ratio its CMDCOLR bits 9-11 pick;
+# slot 7 is the one no script sets, so it stays 0: opaque (1D 07)
+ENDING_PREFIX = SUBTITLE_PREFIX + b'\x1d\x07'
+# until its first scene with a sprite set (lane frame 488), ED_TUU has no sprite colours in colour RAM (all 0),
+# so no caption can show there; its first line waits for that scene
+FIRST_SET = {154: 488}
+# ED_TUU's last scene: from this lane frame on, the camera moves the sprites down 1 px a frame (measured)
+PANS = {154: 3413}
+FIRST_LENGTHS = {0x03: 8, 0x13: 3, 0x1B: 3, 0x3F: 2, 0x40: 6, 0x80: 2}    # the scripts' first instructions
 
 
 def _subtitle_img(text, white, black):
@@ -353,7 +364,7 @@ def _splice(script, actors):
     actors: [(actor id, bottom code, speaker code)]"""
     n = 0
     while n < 3:
-        n += FIRST_LENGTHS[script[5 + n]]           # KeyError: a first instruction not seen in the skits
+        n += FIRST_LENGTHS[script[5 + n]]           # KeyError: a first instruction not seen in the scripts
     end = len(script)
     bottom = end + 3 + 6 + len(SUBTITLE_MARK)
     speaker = bottom + 8 * len(actors) + 3
@@ -372,43 +383,93 @@ def _splice(script, actors):
     return out
 
 
-def apply_subtitles(ents):
-    for entry, lines in SUBTITLES.items():
-        b = ents[entry + 1]
-        table, pixels = ga.sprites_parse(b)
+def _is_sprite_set(b):
+    if len(b) < 16:
+        return False
+    ncol, n, pal, table, data = struct.unpack_from('>HHIII', b, 0)
+    return 0 < ncol and 0 < n and pal == 16 and table == pal + 2 * ncol and data == table + 12 * n
+
+
+def _add_captions(b, texts, pad_to=0, own_bank=False):
+    """(b with blank sprites up to pad_to entries, then the blank and one sprite per text appended,
+    the blank's frame, [(frame, half width)]); colours: the whitest and darkest of the set's whitest bank,
+    or (own_bank) black and white in a 16-colour bank appended to the palette"""
+    if own_bank:        # the endings' sets have room; their picture palettes lack a true white
+        ncol, n, pal, table, data = struct.unpack_from('>HHIII', b, 0)
+        assert ncol % 16 == 0 and ncol + 16 <= 0x200 and table == pal + 2 * ncol    # sprite type 7: 9-bit colour
+        b = (struct.pack('>HHIII', ncol + 16, n, pal, table + 32, data + 32) + b[16:table]
+             + struct.pack('>16H', 0, 0, 0x7FFF, *[0] * 13) + b[table:])
+        bank, black, white = ncol, 1, 2
+    table, pixels = ga.sprites_parse(b)
+    if not own_bank:
         palette = ga.sprites_palette(b)
         light = lambda v: sum(palette[v])
-        bank = max({t[0] for t in table}, key=lambda k: max(light(k + v) for v in range(1, 16)))   # the whitest white
+        # the 16-colour banks this set's palette holds; a full-screen picture (an 8 bpp sprite, mode bits in
+        # its bank) has none, so its first 16 colours
+        banks = {t[0] for t in table if t[0] + 16 <= len(palette)} or {0}
+        bank = max(banks, key=lambda k: max(light(k + v) for v in range(1, 16)))   # the whitest white
         white = max(range(1, 16), key=lambda v: light(bank + v))
         black = min(range(1, 16), key=lambda v: light(bank + v))
+    for _ in range(len(table), max(pad_to, len(table)) + 1):        # the padding, then the blank
         b, blank = ga.sprites_add(b, pixels, bank, 8, 1, bytes(4))
+    frames = []
+    for text in texts:
+        img = _subtitle_img(text, white, black)
+        data = bytearray(len(img[0]) * len(img) // 2)
+        _sprite_put(data, 0, img)
+        b, frame = ga.sprites_add(b, pixels, bank, len(img[0]), len(img), data)
+        frames.append((frame, len(img[0]) // 2))
+    return ga.sprites_pack(b, pixels), blank, frames
+
+
+def apply_subtitles(ents):
+    for entry, lines in SUBTITLES.items():
+        lines = sorted(lines)
+        texts = [text for _, _, _, text in lines]
+        if entry + 1 in saturn_credits.ENDINGS:
+            # an ending draws from the sprite set of its current scene; every set of its container gets
+            # the captions at the same frames (the smaller ones padded), so any scene can show them
+            head, blocks, order = ga.container_parse(ents[entry + 1])
+            sets = [k for k, blk in enumerate(blocks) if _is_sprite_set(blk)]
+            pad = max(struct.unpack_from('>H', blocks[k], 2)[0] for k in sets)
+            for k in sets:
+                blocks[k], blank, frames = _add_captions(blocks[k], texts, pad, own_bank=True)
+            ents[entry + 1] = ga.container_pack(head, blocks, order)
+            assert lines[0][0] >= FIRST_SET.get(entry, 0), 'PUYOSHOW %d: a caption before any sprite colours' % entry
+        else:
+            ents[entry + 1], blank, frames = _add_captions(ents[entry + 1], texts)
+            assert len(ents[entry + 1]) <= SLOT, 'PUYOSHOW %d: %d bytes' % (entry + 1, len(ents[entry + 1]))
         lanes = []                                  # [[(first, last, frame, half width, speaker (x, y))]]
-        for first, last, speaker, text in sorted(lines):
-            img = _subtitle_img(text, white, black)
-            data = bytearray(len(img[0]) * len(img) // 2)
-            _sprite_put(data, 0, img)
-            b, frame = ga.sprites_add(b, pixels, bank, len(img[0]), len(img), data)
+        for (first, last, speaker, _), (frame, half) in zip(lines, frames):
             lane = next((l for l in lanes if l[-1][1] <= first), None)    # touching lines share a lane
             if lane is None:
                 lanes.append(lane := [])
-            lane.append((first, last, frame, len(img[0]) // 2, speaker))
+            lane.append((first, last, frame, half, speaker))
         assert len(lanes) <= 2, 'PUYOSHOW %d: more than two lines at once' % entry
         actors = []
         for actor, (k, lane) in zip(SUBTITLE_IDS, enumerate(lanes)):
             bodies = []
             for place in ('bottom', 'speaker'):
-                code, at = bytearray(b'\x16\x0e'), 0         # anchor bottom-centre
+                code, at = bytearray(ENDING_PREFIX if entry + 1 in saturn_credits.ENDINGS else SUBTITLE_PREFIX), 0
                 for first, last, frame, half, speaker in lane:
                     x, y = speaker if place == 'speaker' else (SUBTITLE_BOTTOM[0], SUBTITLE_BOTTOM[1] - 28 * k)
                     x = min(max(x, half + 4), 316 - half)   # on screen
+                    # 10 n waits n frames, 09 f n waits n + 1 (measured)
                     if at == 0:
                         code += struct.pack('<BH', 0x10, first)
                     elif first > at:
-                        code += struct.pack('<BBH', 0x09, blank, first - at)
-                    code += struct.pack('<BhhBBH', 0x0A, x, y, 0x09, frame, last - first)
+                        assert first > at + 1, 'PUYOSHOW %d: a 1-frame gap' % entry
+                        code += struct.pack('<BBH', 0x09, blank, first - at - 1)
+                    # during a pan the caption glides up against it
+                    pan = PANS.get(entry, last)
+                    split = min(max(first, pan), last)
+                    assert 1 not in (split - first, last - split), 'PUYOSHOW %d: a 1-frame wait' % entry
+                    code += struct.pack('<Bhh', 0x0A, x, y - max(0, first - pan))
+                    if split > first:
+                        code += struct.pack('<BBH', 0x09, frame, split - first - 1)
+                    if last > split:
+                        code += struct.pack('<BHhBBH', 0x27, last - split, y - (last - pan), 0x09, frame, last - split - 1)
                     at = last
                 bodies.append(bytes(code + b'\x01'))
             actors.append((actor, *bodies))
-        ents[entry + 1] = ga.sprites_pack(b, pixels)
-        assert len(ents[entry + 1]) <= SLOT, 'PUYOSHOW %d: %d bytes' % (entry + 1, len(ents[entry + 1]))
         ents[entry] = _splice(ents[entry], actors)

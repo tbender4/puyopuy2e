@@ -1,7 +1,8 @@
-"""Saturn skit voice subtitles in English (saturn_cutscenes.apply_subtitles).
+"""Saturn skit and ending voice subtitles in English (saturn_cutscenes.apply_subtitles).
 
 PUYOSHOW script entry: [(first frame, last frame, (x, y) for the SPEAKER placement, text)]. Frames
-count from the script start; the skit's AIF starts 27 frames later. (x, y) is the caption's
+count from the script start (endings: the frames the interpreter runs, scene loads stall it); the AIF
+starts 27 frames later (endings: 34 to 63). (x, y) is the caption's
 bottom-centre. A \n breaks a line where it reads better. Each line's comment: who speaks and the
 Japanese. Wording starts from Domino054's translated cutscene videos."""
 SUBTITLES = {
@@ -287,7 +288,7 @@ SUBTITLES = {
         (699, 1002, (95, 117), 'I powered up my Fire spell just for today.'),  # Arle: この日のためにファイヤーの呪文の火力を上げておいたんだ。
         (1008, 1238, (95, 117), 'You have to roast them nice and crispy.'),  # Arle: やっぱり強火でこんがりと焼かないとね。
         (1231, 1313, (223, 115), 'Nasu-nasu?'),  # opponent: ナスナス?
-        (1322, 1561, (95, 117), 'Now, be a grilled eggplant for me!'),  # Arle: さあ、僕のために焼きナスになってよ。
+        (1322, 1562, (95, 117), 'Now, be a grilled eggplant for me!'),  # Arle: さあ、僕のために焼きナスになってよ。
         (1562, 1647, (223, 115), 'Dummy, naaasu!'),  # opponent: ボケナース!
     ],
     64: [  # NOHOH_N.AIF
@@ -408,7 +409,7 @@ SUBTITLES = {
     88: [  # RULUE_N.AIF
         (281, 516, (95, 117), 'Huh, Rulue? What are you doing here?'),  # Arle: あれ、ルルーじゃない。どうしてこんなとこに?
         (542, 650, (223, 117), "That's my line."),  # opponent: それはこっちのセリフだわ。
-        (668, 948, (223, 117), "To think someone besides me\nfound out the tower's secret!"),  # opponent: まさか私の他に、この塔の秘密に気づいたものがいるなんて。
+        (668, 949, (223, 117), "To think someone besides me\nfound out the tower's secret!"),  # opponent: まさか私の他に、この塔の秘密に気づいたものがいるなんて。
         (949, 1140, (95, 117), "The tower's secret? What's that?"),  # Arle: 塔の秘密?何それ?
         (1187, 1398, (223, 117), 'Hmph. As good at playing dumb as ever.'),  # opponent: ふん、相変わらずとぼけるのがうまいわね。
         (1446, 1717, (223, 117), 'But how long can you keep that up\nagainst me?'),  # opponent: でもこの私を相手に、どこまでシラが切り通せるかしら?
@@ -452,7 +453,7 @@ SUBTITLES = {
         (1290, 1457, (223, 114), 'Here I go!'),  # opponent: ほな、行きまっせー。
     ],
     98: [  # SASOR_T.AIF
-        (281, 407, (95, 117), 'Oh, long time no see!'),  # Arle: あ、久しぶり!
+        (281, 408, (95, 117), 'Oh, long time no see!'),  # Arle: あ、久しぶり!
         (408, 483, (223, 114), 'Well, hello there!'),  # opponent: こりゃどうも!
         (512, 691, (223, 114), 'Still raking it in, I see. Good for you!'),  # opponent: 相変わらず儲かってるようで結構ですな
         (673, 902, (95, 117), 'N-not really...'),  # Arle: そ、そうでもないんだけどな
@@ -680,5 +681,55 @@ SUBTITLES = {
         (2039, 2182, (95, 117), 'Ah, how mean!'),  # Arle: ああ、ひどいな
         (2164, 2592, (223, 116), "You can't talk your way out of it, zoh!"),  # opponent: 言い逃れは、できないんだぞー!
         (2931, 3210, (95, 117), "Then let's settle who's right\nin the Puyo Underworld!"),  # Arle: じゃあ、ぷよぷよ地獄で白黒をはっきりさせようじゃないの!
+    ],
+    148: [  # ED_EASY.AIF
+        (22, 174, (160, 218), 'I... I won...!'),  # Arle: か、勝った!
+        (355, 570, (160, 218), 'I did it! I did it! I did iiit!'),  # Arle: やった!やった!やったー!
+        (596, 666, (160, 218), "I've become a..."),  # Arle: これで僕が…
+        (668, 833, (160, 218), '...Puyo Puyo Master!'),  # Arle: ぷよぷよマスターね!
+        (987, 1146, (160, 190), "Heh heh... Don't make me laugh!"),  # opponent: フフフ…笑わせてくれるわ
+        (1217, 1475, (160, 190), "I'll show you who\nthe real Puyo Master is!"),  # opponent: 本物のぷよマスターが誰なのか、私が教えてやろう
+        (1538, 1673, (160, 190), 'Heh heh heh heh...'),  # opponent: フフフフ…
+        (1714, 2062, (160, 190), 'Ha ha ha ha! Ha ha ha ha!'),  # opponent: ハッハッハッハ。ハッハッハッハ
+        (2074, 2324, (160, 218), 'Ngh... Darn it!'),  # Arle: う、ううう!!くそ~!
+    ],
+    150: [  # ED_NORM.AIF
+        (19, 242, (160, 218), "All right! I'm the winner!"),  # Arle: やったー!僕の勝ちだ!
+        (259, 366, (160, 190), 'D-darn it!'),  # opponent: く、くっそー!
+        (424, 499, (160, 218), 'Huh?'),  # Arle: あら?
+        (623, 755, (160, 218), 'W-wait a minute!'),  # Arle: ちょ、ちょっと待ってよ
+        (757, 908, (160, 218), 'The ground is moving!'),  # Arle: 地面が動いてるよ
+        (890, 1061, (160, 190), 'I-I have no idea!'),  # opponent: わ、わたしは知らんぞ!
+        (1043, 1164, (160, 218), "What's going on?"),  # Arle: どうなってるの?
+    ],
+    152: [  # ED_MASK.AIF
+        (179, 368, (160, 218), 'Whaaat? No way!'),  # Arle: えぇー、うっそー!
+        (370, 748, (160, 218), "I can't believe Masked Satan was\nthe handsome, long-legged Satan!"),  # Arle: マスク・ド・サタンが、あの美形で足の長いサタンと同じ人だったなんて!
+        (902, 1025, (160, 190), "...Or so I'd like to hear."),  # opponent: なんてな…
+        (1082, 1375, (160, 218), 'I knew it was Satan all this time...'),  # Arle: なーんだ、やっぱりサタンじゃん
+        (1377, 1521, (160, 218), "Carby, let's go home."),  # Arle: カーくん、お家帰ろっか
+        (1503, 1743, (160, 190), 'Wait! How did you know I was Satan?'),  # opponent: 待ってくれ、どうして私がサタンだと分かった?
+        (1760, 1904, (160, 218), 'I already told you that before the battle.'),  # Arle: 僕は戦う前から言ってたじゃないか
+        (1952, 2027, (160, 190), 'N-no!'),  # opponent: そ、そんな!
+        (2000, 2180, (160, 218), "I'm starting to get tired now. Bye-bye!"),  # Arle: 僕、もう疲れたよ、バイバイ!
+        (2186, 2302, (160, 190), "Don't just leave me behind!"),  # opponent: 置いてかないでー
+        (2473, 2647, (160, 190), "Carby, you won't leave me, right?"),  # opponent: カーくん、行かないよな
+        (3018, 3327, (160, 190), 'Carby!'),  # opponent: カーくーん
+    ],
+    154: [  # ED_TUU.AIF
+        (491, 565, (160, 218), "All right! I'm number one!"),  # Arle: やっほー!ぼくがいっちばーん!
+        (567, 716, (160, 218), 'Our long battle is finally over!'),  # Arle: やっと長かった戦いが終わるわ!
+        (1048, 1353, (160, 218), 'Nobody can beat me now!'),  # Arle: もう誰も僕に勝てる人はいない!
+        (1485, 1618, (160, 218), "But still, it's so cool..."),  # Arle: でも、すごいなぁ
+        (1620, 1882, (160, 218), "There's so much in this world I don't know."),  # Arle: この世界には僕の知らないことがいっぱいある
+        (1884, 2122, (160, 218), 'I bet there are lots more\nstrange people out there.'),  # Arle: きっとまだ変わった人たちがいっぱいいるに違いないよ
+        (2403, 2519, (160, 218), 'Ah! Carby!'),  # Arle: あー!カーくん!
+        (2627, 2702, (160, 190), 'Guu!'),  # opponent: ぐー!
+        (2748, 2846, (160, 218), 'Carby, are you hungry?'),  # Arle: カーくん、お腹減ったの?
+        (2888, 2963, (160, 218), 'Me too.'),  # Arle: そうだね
+        (2985, 3178, (160, 218), "Let's go home and eat something."),  # Arle: お家に帰って何か食べよう
+        (3160, 3256, (160, 190), 'Guguguu!'),  # opponent: ぐぐぐー!
+        (3331, 3508, (160, 218), "Carby, you'll make me curry? Yay!"),  # Arle: カーくんがカレー作ってくれるの?やった!
+        (3516, 3608, (160, 190), 'Guu!'),  # opponent: ぐー!
     ],
 }

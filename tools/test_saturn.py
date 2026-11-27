@@ -527,15 +527,15 @@ def test_game_arts():
     assert game_arts.scene_pack(game_arts.scene_parse(effect)) == effect
     # skit subtitles: offset 5 jumps to a trampoline: `02 bottom`, the targets bottom / speaker / moved
     # for saturn_build.skit_hook, the mark; each block spawns one actor per lane and goes on to the
-    # moved first instructions, which jump back after themselves. A lane's code: 16 0E, then per line
-    # (10 first | 09 blank gap) 0A x y 09 frame n, then 01.
-    def check_splice(old_s, s):
+    # moved first instructions, which jump back after themselves. A lane's code: the prefix, then per line
+    # (10 first | 09 blank gap) 0A x y, then 09 frame n and/or (a pan) 27 n y 09 frame n, then 01.
+    def check_splice(old_s, s, prefix):
         """the lanes' lines per placement: {block: [(first, last, x, y, frame)]}"""
         end = len(old_s)
         assert s[5:8] == struct.pack('<BH', 2, end) and s[:5] == old_s[:5]
         jump, bottom, speaker, moved = struct.unpack_from('<xHHHH', s, end)
         assert jump == bottom and s[end + 9:end + 11] == saturn_cutscenes.SUBTITLE_MARK
-        n = {0x03: 8, 0x13: 3, 0x1B: 3, 0x3F: 8}[old_s[5]]     # 3F (2 bytes) moves with the 40 after it
+        n = {0x03: 8, 0x13: 3, 0x1B: 3, 0x3F: 8, 0x80: 10}[old_s[5]]   # 3F / 80 (2 bytes) move with what follows
         assert s[moved:moved + n + 3] == old_s[5:5 + n] + struct.pack('<BH', 2, 5 + n)
         assert s[5 + n:end] == old_s[5 + n:] and s[8:5 + n] == b'\x0d' * (n - 3)
         shown = {}
@@ -543,8 +543,8 @@ def test_game_arts():
             k, out = block, []
             while s[k] == 3:
                 actor, pc = struct.unpack_from('<BH', s, k + 1)
-                assert actor in saturn_cutscenes.SUBTITLE_IDS and s[pc:pc + 2] == b'\x16\x0e'
-                pc += 2
+                assert actor in saturn_cutscenes.SUBTITLE_IDS and s[pc:pc + len(prefix)] == prefix
+                pc += len(prefix)
                 at, blank = 0, None
                 while s[pc] != 1:
                     if s[pc] == 0x10:
@@ -554,28 +554,39 @@ def test_game_arts():
                     elif s[pc] == 9:                    # (none when a line starts as the last one ends)
                         op, f, gap = struct.unpack_from('<BBH', s, pc)
                         assert op == 9 and blank in (None, f)
-                        blank, at = f, at + gap
+                        blank, at = f, at + gap + 1     # 09 f n waits n + 1 frames
                         pc += 4
-                    op, x, y, op2, frame, n_ = struct.unpack_from('<BhhBBH', s, pc)
-                    assert op == 0x0A and op2 == 9
-                    out.append((at, at + n_, x, y, frame))
-                    at += n_
-                    pc += 9
+                    op, x, y = struct.unpack_from('<Bhh', s, pc)
+                    assert op == 0x0A
+                    pc, first, frame = pc + 5, at, None
+                    while s[pc] == 0x27 or s[pc] == 9 and frame in (None, s[pc + 1]):    # a pan: glide 27
+                        if s[pc] == 0x27:
+                            pc += 5
+                        else:
+                            frame, at, pc = s[pc + 1], at + struct.unpack_from('<H', s, pc + 2)[0] + 1, pc + 4
+                    out.append((first, at, x, y, frame))
                 k += 8
             assert s[k:k + 3] == struct.pack('<BH', 2, moved)
             shown[block] = sorted(out)
         return list(shown.values())
     sub = list(ents)
     saturn_cutscenes.apply_subtitles(sub)
+    def sets(show, k):
+        """the sprite sets of entry k: itself, or every set of an ending's container"""
+        if k in saturn_credits.ENDINGS:
+            return [b for b in game_arts.container_parse(show[k])[1] if saturn_cutscenes._is_sprite_set(b)]
+        return [show[k]]
     for entry, lines in saturn_cutscenes.SUBTITLES.items():
-        old_n = len(game_arts.sprites_parse(ents[entry + 1])[0])
-        assert len(game_arts.sprites_parse(sub[entry + 1])[0]) == old_n + 1 + len(lines)    # + the blank
-        at_bottom, by_speaker = check_splice(ents[entry], sub[entry])
+        old_n = max(len(game_arts.sprites_parse(b)[0]) for b in sets(ents, entry + 1))    # endings: padded to the largest
+        assert {len(game_arts.sprites_parse(b)[0]) for b in sets(sub, entry + 1)} == {old_n + 1 + len(lines)}  # + the blank
+        prefix = saturn_cutscenes.ENDING_PREFIX if entry + 1 in saturn_credits.ENDINGS else saturn_cutscenes.SUBTITLE_PREFIX
+        at_bottom, by_speaker = check_splice(ents[entry], sub[entry], prefix)
         want = sorted((first, last) for first, last, _, _ in lines)
         assert [l[:2] for l in at_bottom] == want == [l[:2] for l in by_speaker]
         assert sorted(l[4] for l in at_bottom) == list(range(old_n + 1, old_n + 1 + len(lines)))
-    # the skits cover the first instructions other than an 8-byte spawn: 13 (22), 3F + 40 (28), 1B (114)
-    assert {ents[e][5] for e in saturn_cutscenes.SUBTITLES} >= {0x03, 0x13, 0x3F, 0x1B}
+    # the skits cover the first instructions other than an 8-byte spawn: 13 (22), 3F + 40 (28), 1B (114),
+    # the endings 80 (+ the 03 after it)
+    assert {ents[e][5] for e in saturn_cutscenes.SUBTITLES} >= {0x03, 0x13, 0x3F, 0x1B, 0x80}
     print('PASS Game Arts LZSS/map units + PUYOSHOW.FLD/EFFECT.DAT byte-exact repack + subtitle splice')
 
 
