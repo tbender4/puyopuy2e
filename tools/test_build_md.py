@@ -22,7 +22,7 @@ if not os.path.exists(ROM):
     raise SystemExit('put %s in the repo root to run this test' % make_puyopuy2e_md.ORIG_NAME)
 orig = make_puyopuy2e_md.read_rom(ROM)
 
-EXPECTED = {'original': 0x0b49566c, 'no-red-puyos': 0x4be972d1, 'with-red-puyos': 0xefa29866}
+EXPECTED = {'original': 0x7ba1b329, 'no-red-puyos': 0x2854fece, 'with-red-puyos': 0x5b68a1cf}
 for mode in logo.MODES:
     out = bytes(md_build.build(orig, mode))
     assert len(out) == len(orig)

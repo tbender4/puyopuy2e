@@ -77,7 +77,7 @@ Hey dude! Help me out for a couple of :beers: or a :coffee:!<br/>
 | ばたんきゅ～ over a knocked-out player's field, big and in the small fields of the score panel | K.O. |
 | Rule select screen | CHOOSE A RULE! and both rule lines |
 | Level select: 激甘 ... 激辛 | EXTRA MILD, MILD, MEDIUM, HOT, EXTRA HOT |
-| Join-in and link messages, はい / いいえ | NEW CHALLENGER!, YES / NO (also when highlighted), ...; centred on screen |
+| Join-in and link messages, はい / いいえ | NEW CHALLENGER!, YES / NO (also when highlighted), ...; starting at column 4 as the Japanese |
 | Continue screen, win screen (やった) | CONTINUE?, YAY! |
 | Act Against AIDS slogan 勇気と愛気 | COURAGE AND LOVE |
 | Service menu romaji, ending record (MAX RENSA) | English |
@@ -102,7 +102,7 @@ Known limits:
 
 ## Screenshots
 
-Japanese arcade original on the left, `puyopuy2e` on the right (MAME; the linked-cabinet ones from two mame2003-plus instances joined by the test link, see Known limits).
+Japanese arcade original on the left, `puyopuy2e` on the right (MAME; the linked-cabinet join prompt from two MAME instances joined by the [puyo2link](https://github.com/tbender4/puyo2link) plugin, the other linked-cabinet ones from two mame2003-plus instances joined by the test link, see Known limits).
 
 | | Original | English |
 |---|---|---|
@@ -189,12 +189,12 @@ Output, the files of `puyopuy2e.zip` (by `--logo` mode):
 
 | `--logo` | File | Size | CRC32 | SHA1 | From |
 |---|---|---|---|---|---|
-| `no-red-puyos` (default) | pp2e-17241.ic32 | 524288 | 3661b608 | e799cf36fd023b9d2013466aec54ca8bd56f7b92 | epr-17241.ic32, changed |
-| `no-red-puyos` (default) | pp2e-17240.ic31 | 524288 | c2edf254 | 3fb1cf6b9b12263a210b925f34c1404df2c1e099 | epr-17240.ic31, changed |
-| `with-red-puyos` | pp2e-17241.ic32 | 524288 | 0d07efe9 | d1b5c318309a7da24b48fd3020cb2e2c65b52a85 | epr-17241.ic32, changed |
-| `with-red-puyos` | pp2e-17240.ic31 | 524288 | e7f5f2de | 1b868f493c34de1bd22bee90143116c12a8768c7 | epr-17240.ic31, changed |
-| `original` | pp2e-17241.ic32 | 524288 | 9c546529 | ff0cfa2e0bad7cdbd80db96074eae53aca65a498 | epr-17241.ic32, changed |
-| `original` | pp2e-17240.ic31 | 524288 | 13f76e95 | 56d8e070684084def73ce898c1e003abc6e6b4be | epr-17240.ic31, changed |
+| `no-red-puyos` (default) | pp2e-17241.ic32 | 524288 | 18181319 | 570d9afd404833eef00262f7b21ed56911d37101 | epr-17241.ic32, changed |
+| `no-red-puyos` (default) | pp2e-17240.ic31 | 524288 | bc513537 | 5d44c6c6d9e12486feb4a5e76456601045780ecc | epr-17240.ic31, changed |
+| `with-red-puyos` | pp2e-17241.ic32 | 524288 | b017273f | 05052339db1b57ac2a680cf1fafc7c1fb601a7b6 | epr-17241.ic32, changed |
+| `with-red-puyos` | pp2e-17240.ic31 | 524288 | a250d10c | 89d2633b5d2b07c20b33aa4e64406402c821e28d | epr-17240.ic31, changed |
+| `original` | pp2e-17241.ic32 | 524288 | 2241d6e1 | 7d8d25b689aff82355cf5d5acca103acd5444bef | epr-17241.ic32, changed |
+| `original` | pp2e-17240.ic31 | 524288 | cecf7e06 | 04f9d92866b009c439d861c06bf7d0d109a3c7bc | epr-17240.ic31, changed |
 | all | epr-17239.ic4 | 524288 | 020ff6ef | 6095b8277b47a6fd7a9721f15a70ae5bf6be9b1a | copied |
 
 The two 16-bit EPROM checksums at `0x1f8`/`0x1fa` are recalculated for each build so the

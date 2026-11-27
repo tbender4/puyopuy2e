@@ -5,106 +5,116 @@
 A string is a VRAM offset word (from the plane at 0xc000), then glyph bytes ("80 hh" sets
 the high byte of the tile words, 0x80 at the start of each line), then 0xfe (another line
 follows, word aligned) or 0xff (the end); an offset word 0xffff is followed by a long
-pointer to where the string goes on.
+pointer to where the string goes on. A glyph byte g < 0x80 is drawn as the tiles from
+high << 8 | (4g & 0xff) (64 glyphs per high byte); 0x81-0xfd draw a blank cell.
 
-The glyphs (stream 0x8cb5e, 32 glyphs, tiles 0x400 on with high byte 0x84) are redrawn as
-pairs of 8x16 letters, white (f) outlined in 1, and each original string is pointed at an
-English one written in free space."""
+The glyphs (stream 0x8cb5e, 32 glyphs at tile 0x400, high byte 0x84) are redrawn from the
+English lines (line_glyphs), as many as the 64 of high byte 0x84 (tiles 0x480-0x4ff hold only
+play tiles left over on that screen, as 0x400-0x47f did), and each original string is
+pointed at an English one written in free space."""
 import struct
-import font
+import font, labels
 
 GLYPHS = 0x8cb5e
 HIGH = 0x84
 
 NEW = "NEW CHALLENGER!"
 CANT = "CAN'T JOIN THE OTHER ONE"
-# original string: [(row, text, half a glyph of space first)]; each line centred on the
-# 40-column screen (the originals all started at column 4), but NO / YES, which stay at
-# column 20 beside the two cabinets
+# original string: [(row, text)]; each line starts at column 4 as the originals do, but
+# NO / YES, which stay at column 20 beside the two cabinets
 COLUMN = {"NO": 20, "YES": 20}
 STRINGS = {
-    0x19dc8: [(4, NEW, 0)],
-    0x19dd4: [(4, NEW, 0), (10, CANT, 0)],
-    0x19de0: [(10, CANT, 0)],
-    0x19df6: [(6, "JOINING IN!", 0)],
-    0x19e00: [(10, "JOIN THE OTHER ONE?", 0)],
-    0x19e14: [(10, "JOIN THE OTHER ONE TOO?", 0), (4, NEW, 0)],
-    0x19e30: [(14, "NO", 0), (18, "YES", 0)],       # written in place: see apply
-    0x1b274: [(6, "LINK DOWN!", 1), (10, "CALL THE STAFF", 0)],
+    0x19dc8: [(4, NEW)],
+    0x19dd4: [(4, NEW), (10, CANT)],
+    0x19de0: [(10, CANT)],
+    0x19df6: [(6, "JOINING IN!")],
+    0x19e00: [(10, "JOIN THE OTHER ONE?")],
+    0x19e14: [(10, "JOIN THE OTHER ONE TOO?"), (4, NEW)],
+    0x19e30: [(14, "NO"), (18, "YES")],       # written in place: see apply
+    0x1b274: [(6, "LINK DOWN!"), (10, "CALL THE STAFF")],
 }
 # The choice under the cursor is drawn again in red (0x19cf8) from the original records,
 # 0x19e30 for NO and 0x19e38 for YES: offset word, 80 84 skipped, glyphs to fe/ff. NO / YES
-# are written there in place, each 8 bytes; NO ends with 80 84 before fe, so that its
-# record (one glyph shorter than いいえ) ends where YES's starts
+# are written there in place, each 8 bytes (NO padded with 80 84 before fe or a 0 after it,
+# as the records are word aligned), so that NO's record ends where YES's starts
 IN_PLACE = {0x19e30: 0x19e38}
 
 
-def offset(row, text, shift):
-    """VRAM offset of a line (plane 64 cells wide): centred, in whole cells"""
-    width = 2 * len(pairs(text, shift))
-    col = COLUMN.get(text, (40 - width) // 2)
-    return row * 0x80 + col * 2
+def offset(row, text):
+    """VRAM offset of a line (plane 64 cells wide)"""
+    return row * 0x80 + COLUMN.get(text, 4) * 2
 
 
-def pairs(text, shift):
-    t = ' ' * shift + text
-    if len(t) % 2:
-        t += ' '
-    return [t[i:i + 2] for i in range(0, len(t), 2)]
-
-
-def glyph_pixels(pair, glyphs):
-    """16 x 16: the two letters in f, outlined in 1"""
-    img = [[0] * 16 for _ in range(16)]
-    for k, ch in enumerate(pair):
+def line_glyphs(text, glyphs):
+    """16x16 glyphs covering text in f outlined in 1, each letter 1 px into its cell so its
+    left outline is in its own cell and its right one in the next (a line ending on a letter
+    gets one more cell); two outlined letters do not fit one glyph on their own"""
+    cells = len(text) + (text[-1:] != ' ')
+    w = 8 * (cells + cells % 2)
+    img = [[0] * w for _ in range(16)]
+    for k, ch in enumerate(text):
         for y, row in enumerate(glyphs[ord(ch)]):
             for x in range(8):
                 if row >> (7 - x) & 1:
-                    img[y][8 * k + x] = 0xf
-    out = [r[:] for r in img]
-    for y in range(16):
-        for x in range(16):
-            if img[y][x] == 0 and any(0 <= y + dy < 16 and 0 <= x + dx < 16 and img[y + dy][x + dx]
-                                      for dy in (-1, 0, 1) for dx in (-1, 0, 1)):
-                out[y][x] = 1
-    return out
+                    img[y][8 * k + 1 + x] = 0xf
+    img = labels.ring(img, 1, {0xf})
+    return [[r[i:i + 16] for r in img] for i in range(0, w, 16)]
+
+
+def key(img):
+    """a glyph as a dict key; None when it is empty (drawn as the blank byte 0x81)"""
+    return tuple(map(tuple, img)) if any(map(any, img)) else None
+
+
+def encode(text, index, glyphs, high):
+    """glyph bytes of text after a line's 80 high; index: key -> (high byte, glyph), with
+    80 hh where the high byte changes"""
+    out = bytearray()
+    for img in line_glyphs(text, glyphs):
+        k = key(img)
+        if k is None:
+            out.append(0x81)
+            continue
+        h, g = index[k]
+        if h != high:
+            out += bytes([0x80, h])
+            high = h
+        out.append(g)
+    return bytes(out)
 
 
 def apply(prog, streams, at, end):
     """redraws the glyphs, writes the strings from at (below end); returns where they end"""
     glyphs = font.font()
-    index = {}
+    imgs = {}
     for lines in STRINGS.values():
-        for _, text, shift in lines:
-            for p in pairs(text, shift):
-                index.setdefault(p, len(index))
-    if len(index) > 32:
-        raise SystemExit('linkmsg: %d glyphs, there are 32' % len(index))
+        for _, text in lines:
+            for img in line_glyphs(text, glyphs):
+                if k := key(img):
+                    imgs.setdefault(k, img)
+    if len(imgs) > 64:
+        raise SystemExit('linkmsg: %d glyphs, there are 64' % len(imgs))
+    index = {k: (HIGH, g) for g, k in enumerate(imgs)}
     tiles = streams.get(GLYPHS)
-    for p, g in index.items():
-        img = glyph_pixels(p, glyphs)
-        for q, (dx, dy) in enumerate(((0, 0), (0, 8), (8, 0), (8, 8))):
-            data = bytearray(32)
-            for y in range(8):
-                for x in range(8):
-                    v = img[dy + y][dx + x]
-                    data[y * 4 + x // 2] |= v << (4 if x % 2 == 0 else 0)
-            tiles[(4 * g + q) * 32:(4 * g + q + 1) * 32] = data
+    tiles += bytes(max(0, 4 * len(imgs) * 32 - len(tiles)))
+    for g, img in enumerate(imgs.values()):
+        labels.put_tiles(tiles, img, labels.sprite_order(4 * g, 2, 2, 1))
+    enc = lambda text: encode(text, index, glyphs, HIGH)
     for orig, lines in STRINGS.items():
         data = bytearray()
-        for k, (row, text, shift) in enumerate(lines):
+        for k, (row, text) in enumerate(lines):
             if len(data) % 2:
                 data.append(0)
-            data += struct.pack('>H', offset(row, text, shift)) + bytes([0x80, HIGH])
-            data += bytes(index[p] for p in pairs(text, shift))
+            data += struct.pack('>H', offset(row, text)) + bytes([0x80, HIGH])
+            data += enc(text)
             data.append(0xff if k == len(lines) - 1 else 0xfe)
         if orig in IN_PLACE:
-            rows = [(row, text, shift) for row, text, shift in lines]
-            first = struct.pack('>H', offset(*rows[0])) + bytes([0x80, HIGH])
-            first += bytes(index[p] for p in pairs(*rows[0][1:]))
+            (row0, text0), (row1, text1) = lines
+            first = struct.pack('>H', offset(row0, text0)) + bytes([0x80, HIGH]) + enc(text0)
             first += bytes([0x80, HIGH]) * ((IN_PLACE[orig] - orig - len(first) - 1) // 2) + b'\xfe'
-            second = struct.pack('>H', offset(*rows[1])) + bytes([0x80, HIGH])
-            second += bytes(index[p] for p in pairs(*rows[1][1:])) + b'\xff'
+            first += b'\0' * (len(first) % 2)       # the next record is word aligned
+            second = struct.pack('>H', offset(row1, text1)) + bytes([0x80, HIGH])
+            second += enc(text1) + b'\xff'
             second += b'\0' * (len(second) % 2)
             if len(first) != IN_PLACE[orig] - orig or len(second) > 8:
                 raise SystemExit('linkmsg: NO / YES do not fit their records')

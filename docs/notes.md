@@ -92,8 +92,8 @@ sprites made of 10 pieces of three 4x7 letters.
 The join-in messages are drawn by `0x15be`: a VRAM offset word, then one byte per 16x16
 glyph (tile `4 x byte`, column by column), `80 hh` to set the high byte of the tile
 words, `fe` for another line, `ff` for the end; an offset `ffff` is followed by a long
-pointer. The 32 glyphs became pairs of 8x16 letters; the strings are new and the old
-ones point at them.
+pointer. The glyphs are redrawn from the outlined English lines, cut into 16x16 glyphs
+(up to the 64 of high byte 0x84); the strings are new and the old ones point at them.
 
 ## Service menu
 

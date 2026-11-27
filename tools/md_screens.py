@@ -36,7 +36,8 @@ MOUTH_LABELS = (
     ("OPTIONS",),
 )
 
-# Rule Edit (0x091461 glyphs 0x00..0x3b, preserving curve icons 0x3c..0x3f and digits 256..277)
+# Rule Edit (0x091461: glyphs 0x00..0x3b of high byte 0x82 and 0x06..0x3f of 0x83, preserving curve
+# icons 0x3c..0x3f and digits 256..277)
 RULE_EDIT_MENU_AT = 0x0177b2
 RULE_EDIT_MENU_PTRS = 0x0177a6
 RULE_EDIT_MENU = (
@@ -69,7 +70,7 @@ RULE_EDIT_CREATE = (
 # Rule Editor digit & curve VRAM coordinates (patch 16-bit immediates in 0x0178ba..0x017960
 # so every value + unit right-aligns cleanly to column 37).
 RULE_EDIT_VRAM = (
-    (0x0178bc, 0xc3c6),   # r7  copy rule digit 1..6 -> col 37 (after "RULE" at 32..35)
+    (0x0178bc, 0xc3c6),   # r7  copy rule digit 1..6 -> col 37 (after "RULE" at 31..34)
     (0x0178e4, 0xc53c),   # r10 puyo to pop -> cols 30..32 (space col 33, "PUYO" at 34..37)
     (0x0178f4, 0xc6c0),   # r13 nuisance rate -> cols 32..34 (space col 35, "PT" at 36..37)
     (0x017904, 0xc840),   # r16 nuisance pts -> cols 32..34 (space col 35, "PT" at 36..37)
@@ -78,7 +79,7 @@ RULE_EDIT_VRAM = (
     (0x017960, 0xcb48),   # r22 chain curve icon -> cols 36..37
 )
 
-RULE_EDIT_HARD_AT = 0x017980    # 3 fixed 8-byte records: 80 82 <4 glyph bytes> ff 00
+RULE_EDIT_HARD_AT = 0x017980    # 3 fixed 8-byte records: 80 82 <5 glyph bytes> ff
 RULE_EDIT_HARD = ("  NORMAL", "    HARD", "HARD CAP")
 
 
@@ -296,29 +297,36 @@ def apply_special_rules(streams):
 
 
 def apply_rule_edit(prog, streams, at, end):
-    """Rule Edit menu + editor + nuisance hardness values (glyph stream 0x091461).
-    Uses glyph slots 0x00..0x3b (60 slots) as 8x16 letter pairs via linkmsg helpers,
-    preserving chain-curve icons 0x3c..0x3f and narrow digits at tiles 256..277."""
+    """Rule Edit menu + editor + nuisance hardness values (glyph stream 0x091461, VRAM tile
+    0x200), drawn as linkmsg.line_glyphs. Glyphs 0x00..0x3b of high byte 0x82 (0x3c..0x3f are
+    the chain-curve icons) serve the items, which the cursor redraws in red skipping their
+    80 82, and the fixed hardness records; the rest also take high byte 0x83 glyphs from 0x06
+    (tiles 0x318..0x3ff: 0x300..0x315 are the narrow digits, the rest unused on these screens)."""
     glyphs = font.font()
-    index = {}
-    texts = [(t, sh) for g in (RULE_EDIT_MENU, RULE_EDIT_CREATE) for _, _, t, sh, _ in g] + [(t, 0) for t in RULE_EDIT_HARD]
-    for txt, sh in texts:
-        for p in linkmsg.pairs(txt, sh):
-            if p != '  ':
-                index.setdefault(p, len(index))
-    if len(index) > 0x3c:
-        raise SystemExit('rule_edit: %d glyph pairs, max 60 (0x00..0x3b)' % len(index))
+    rows = [(' ' * sh + t, item) for g in (RULE_EDIT_MENU, RULE_EDIT_CREATE) for _, _, t, sh, item in g]
+    imgs = {}
+    for txt, first in [(t, True) for t in RULE_EDIT_HARD] + sorted(rows, key=lambda r: not r[1]):
+        for img in linkmsg.line_glyphs(txt, glyphs):
+            if k := linkmsg.key(img):
+                imgs.setdefault(k, (img, first))
+    slots = [(0x82, g) for g in range(0x3c)] + [(0x83, g) for g in range(0x06, 0x40)]
+    firsts = sum(first for _, first in imgs.values())
+    if len(imgs) > len(slots) or firsts > 0x3c:
+        raise SystemExit('rule_edit: %d glyphs (%d for items and hardness), max 118 (60)' % (len(imgs), firsts))
+    index = dict(zip(imgs, slots))
 
+    tile = lambda h, g: 256 * (h - 0x82) + 4 * g        # in the stream
     tiles = streams.get(0x091461)
-    for p, g in index.items():
-        labels.put_tiles(tiles, linkmsg.glyph_pixels(p, glyphs), labels.sprite_order(4 * g, 2, 2, 1))
+    tiles += bytes(max(0, 32 * (max(tile(*s) for s in index.values()) + 4) - len(tiles)))
+    for k, s in index.items():
+        labels.put_tiles(tiles, imgs[k][0], labels.sprite_order(tile(*s), 2, 2, 1))
     blank = [[0] * 8 for _ in range(8)]
     for g in range(len(index), 0x3c):
         for q in range(4):
             gfx.tile_put(tiles, 4 * g + q, blank)
 
-    def encode_pairs(txt, sh):
-        return bytes(0x81 if p == '  ' else index[p] for p in linkmsg.pairs(txt, sh))
+    def encode(txt, sh):
+        return linkmsg.encode(' ' * sh + txt, index, glyphs, 0x82)
 
     def write_screen(orig_at, ptr_table, rows, at):
         assert at % 2 == 0
@@ -331,7 +339,7 @@ def apply_rule_edit(prog, streams, at, end):
             if is_item:
                 ptrs.append(start + len(data))
             voff = row * 0x80 + col * 2
-            data += struct.pack('>H', voff) + b'\x80\x82' + encode_pairs(txt, sh)
+            data += struct.pack('>H', voff) + b'\x80\x82' + encode(txt, sh)
             data.append(0xff if k == len(rows) - 1 else 0xfe)
         if len(data) % 2:
             data.append(0)
@@ -348,7 +356,7 @@ def apply_rule_edit(prog, streams, at, end):
 
     # 3 fixed 8-byte nuisance hardness records at 0x017980..0x017997
     for k, txt in enumerate(RULE_EDIT_HARD):
-        rec = b'\x80\x82' + encode_pairs(txt, 0) + b'\xff\x00'
+        rec = b'\x80\x82' + encode(txt, 0) + b'\xff'      # the 5th glyph: the outline right of the text
         assert len(rec) == 8, 'hardness record %r must be 8 bytes, got %d' % (txt, len(rec))
         off = RULE_EDIT_HARD_AT + 8 * k
         prog[off:off + 8] = rec
