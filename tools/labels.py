@@ -375,7 +375,7 @@ def apply_aids(streams):
 ALL_CLEAR = "ALL CLEAR"
 
 
-def apply_allclear(streams):
+def apply_allclear(streams, blank=0x1c):
     # 全消し in the tutorial's ALL CLEAR page: the box inside is 12 x 3 cells at 0x270 of
     # the map stream 0x45503 (rows 14 words apart), tiles of the tutorial stream 0x91545;
     # yellow (a) outlined (1), the bottom of each letter darker (9)
@@ -386,7 +386,7 @@ def apply_allclear(streams):
                 img[y][x] = 0x9
                 break
     gfx.replace_block(streams.get(0x91545), streams.get(0x45503), 0x270, 12, 3, img,
-                      row_stride=14, blank=0x1c)
+                      row_stride=14, blank=blank)
 
 
 def apply_crossed(streams, plain):
@@ -668,18 +668,19 @@ def apply_rules(streams):
 # やった on the winner's side after a match: sprites of stream 0x86f09 (VRAM tile 0x680),
 # its list of 7 sprites at 0x1e542 (count, then y, size and link, attribute, x) becomes 6:
 # three 4x4 over three 4x1, a 96 x 40 picture from the centre 48 left and 32 up
+# (MD and Saturn pass their own list_at; on Saturn the size word's low byte is a priority flag, 0x02)
 YAY_LIST = 0x1e542
 
 
-def apply_yay(prog, streams):
+def apply_yay(prog, streams, list_at=YAY_LIST, link=0x08):
     import png, struct
     img = png.read(os.path.join(ASSETS, 'yay.png'))
     tiles = streams.get(0x86f09)
     sprites = []
     for k in range(3):
-        sprites.append((-32, 0x0f08, 16 * k, -48 + 32 * k, 4, 4))
+        sprites.append((-32, 0x0f00 | link, 16 * k, -48 + 32 * k, 4, 4))
     for k in range(3):
-        sprites.append((0, 0x0c08, 48 + 4 * k, -48 + 32 * k, 4, 1))
+        sprites.append((0, 0x0c00 | link, 48 + 4 * k, -48 + 32 * k, 4, 1))
     data = struct.pack('>H', len(sprites))
     for y, size, first, x, w, h in sprites:
         data += struct.pack('>hHHh', y, size, 0x0680 + first, x)
@@ -688,6 +689,6 @@ def apply_yay(prog, streams):
                 cell = [row[x + 48 + 8 * c:x + 56 + 8 * c] for row in img[y + 32 + 8 * r:y + 40 + 8 * r]]
                 gfx.tile_put(tiles, first + h * c + r, cell)
     assert len(data) <= 2 + 7 * 8
-    prog[YAY_LIST:YAY_LIST + len(data)] = data
+    prog[list_at:list_at + len(data)] = data
     for t in range(60, 69):
         gfx.tile_put(tiles, t, [[0] * 8 for _ in range(8)])

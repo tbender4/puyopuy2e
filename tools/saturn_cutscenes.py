@@ -68,7 +68,7 @@ def _redraw_map(scene, part, img, colour_bits, grow=0):
     used = {c & 0x7fff for k, c in enumerate(cells) if keep[k]}
     for j, p in enumerate(scene['parts'][2:], 2):
         if j != part:
-            used |= {c & 0x7fff for c in saturn_credits._cells(p)}
+            used |= {c & 0x7fff for c in saturn_credits.map_cells(p)}
     tiles += bytes(32 * grow)
     blank = next(t for t in range(len(tiles) // 32) if not any(tiles[t * 32:t * 32 + 32]))
     used.add(blank)                             # blank cells must stay blank
@@ -165,7 +165,7 @@ def _wrap(text, width):
     lines, cur = [], ''
     for word in text.split(' '):
         trial = (cur + ' ' + word).strip() if not cur.endswith('-') else cur + word
-        if cur and len(md_credits._text(trial)) > width:
+        if cur and len(md_credits.text_columns(trial)) > width:
             lines.append(cur)
             cur = word
         else:
@@ -179,7 +179,7 @@ def _caption(w, h, text, fill, edge, centre):
     lines = _wrap(text, w - 2)
     y0 = cy - 8 * len(lines)
     for k, line in enumerate(lines):
-        cols = md_credits._text(line)
+        cols = md_credits.text_columns(line)
         x0 = min(max(1, cx - len(cols) // 2), w - 1 - len(cols))   # near cx, inside the strip
         for x, col in enumerate(cols):
             for y, v in enumerate(col):
@@ -271,7 +271,7 @@ NOTE_DX, NOTE_BOTTOM = 64, 112          # note right edge / bottom from the sign
 def _spleen(img, text, x0, y0, fill, edge):
     """draw text in Spleen 8x16 (capital rows 2-11) at (x0, y0), with an edge ring"""
     layer = [[0] * len(img[0]) for _ in img]
-    for x, col in enumerate(md_credits._text(text)):
+    for x, col in enumerate(md_credits.text_columns(text)):
         for y, v in enumerate(col):
             if v:
                 layer[y0 + y][x0 + x] = fill
@@ -303,11 +303,11 @@ def apply_schezo(ents, style=None):
         for y in range(h):
             img[oy + y][ox:ox + w] = old[y]
         if style in 'bc':
-            cols = len(md_credits._text(word))
+            cols = len(md_credits.text_columns(word))
             _spleen(img, word, W // 2 - cols // 2, oy - 13, 12, 1)    # the kana's yellow, black edge
         if note:
             for n, line in enumerate(SCHEZO_NOTE):
-                cols = len(md_credits._text(line))
+                cols = len(md_credits.text_columns(line))
                 _spleen(img, line, W // 2 + NOTE_DX - cols - 1, H // 2 + NOTE_BOTTOM - 13 * (3 - n) - 2, 15, 1)
         data = bytearray(W * H // 2)
         _sprite_put(data, 0, img)

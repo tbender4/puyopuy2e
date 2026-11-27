@@ -1,4 +1,4 @@
-"""Builds the English program from the original one (tools/make_puyopuy2e.py runs it)."""
+"""Builds the English program from the original one (make_puyopuy2e.py runs it)."""
 import os, struct, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))

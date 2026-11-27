@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""tools/release.py - Publish a directory of built IPS artifacts to GitHub Releases.
+"""tools/release.py - Publish a directory of built IPS/BPS artifacts to GitHub Releases.
 
 Only the Python 3 standard library is used. Reads GITHUB_TOKEN from the environment."""
 import argparse, json, os, subprocess, sys, urllib.error, urllib.parse, urllib.request

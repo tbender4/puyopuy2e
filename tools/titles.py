@@ -21,7 +21,7 @@ TITLES = ["BASIC CONTROLS", "GAME OVER", "CHAIN ATTACKS", "NUISANCE PUYO",
           "OFFSETTING", "ALL CLEAR", "JOINING IN", "QUICK TURN"]
 
 
-def apply(streams):
+def apply(streams, blank=BLANK):
     tiles = streams.get(TILE_STREAM)
     tmap = streams.get(MAP_STREAM)
     letters = sorted(set(''.join(TITLES)) - {' '})
@@ -40,6 +40,6 @@ def apply(streams):
         text = title.center(WIDTH)
         for row in range(2):
             for col, ch in enumerate(text):
-                v = BLANK if ch == ' ' else slot[ch][row]
+                v = blank if ch == ' ' else slot[ch][row]
                 i = MAP_AT + 2 * ((2 * k + row) * WIDTH + col)
                 tmap[i:i + 2] = v.to_bytes(2, 'big')

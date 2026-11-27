@@ -67,7 +67,7 @@ def layout():
         items.append((y, LEFT + (8 if sub else 0), heading.strip()))
         y += PITCH
         for left, right in rows:
-            if right and RIGHT + len(md_credits._text(right)) > 8 * W:     # too wide: own row
+            if right and RIGHT + len(md_credits.text_columns(right)) > 8 * W:     # too wide: own row
                 if left:
                     items.append((y, NAME, left))
                     y += PITCH
@@ -86,7 +86,7 @@ def roll_image():
     items = layout()
     right_rows = {y for y, x, _ in items if x == RIGHT}
     for y, x, text in items:
-        cols = md_credits._text(text)
+        cols = md_credits.text_columns(text)
         limit = RIGHT - 4 if x < RIGHT and y in right_rows else 8 * W
         assert x + len(cols) <= limit, 'staff roll line too wide: ' + text
         for c, col in enumerate(cols):
@@ -106,7 +106,7 @@ def apply(puyoshow_ents):
         cell = maps[0][2][0] & 0xF07F0000      # palette bits of the credit pages
         assert all(m[:2] == (W, H) for m in maps)
         others = {c & 0x7fff for j, part in enumerate(scene['parts'][2:], 2)
-                  if not first <= j < first + PAGES for c in _cells(part)}
+                  if not first <= j < first + PAGES for c in map_cells(part)}
         free = sorted({c & 0x7fff for m in maps for c in m[2]} - others - {0})
         made = {bytes(32): 0}
         for p in range(PAGES):
@@ -131,7 +131,7 @@ def apply(puyoshow_ents):
         puyoshow_ents[entry] = ga.container_pack(head, blocks, order)
 
 
-def _cells(part):
+def map_cells(part):
     """cells of a map part, or nothing for the non-map tables"""
     try:
         w, h, cells, end = ga.map_decode(part, 0)

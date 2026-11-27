@@ -5,6 +5,7 @@ import os, struct, sys, zlib
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, '..')
 sys.path.insert(0, HERE)
+sys.path.insert(0, ROOT)
 
 
 class BlockPIL:
@@ -14,13 +15,12 @@ class BlockPIL:
 
 
 sys.meta_path.insert(0, BlockPIL())
-import logo, lz, md_build  # noqa: E402
+import logo, lz, md_build, make_puyopuy2e_md  # noqa: E402
 
-ROM = os.path.join(ROOT, 'Puyo Puyo 2 (Japan) (v1.1).md')
+ROM = os.path.join(ROOT, make_puyopuy2e_md.ORIG_NAME)
 if not os.path.exists(ROM):
-    raise SystemExit('put Puyo Puyo 2 (Japan) (v1.1).md in the repo root to run this test')
-orig = open(ROM, 'rb').read()
-assert len(orig) == 0x200000 and (zlib.crc32(orig) & 0xffffffff) == 0x25b7b2aa
+    raise SystemExit('put %s in the repo root to run this test' % make_puyopuy2e_md.ORIG_NAME)
+orig = make_puyopuy2e_md.read_rom(ROM)
 
 EXPECTED = {'original': 0x0b49566c, 'no-red-puyos': 0x4be972d1, 'with-red-puyos': 0xefa29866}
 for mode in logo.MODES:

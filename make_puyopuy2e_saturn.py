@@ -33,21 +33,18 @@ def main():
                    help='title logo variant (default: %(default)s)')
     p.add_argument('--fast', action='store_true',
                    help='overlay onto an existing output Track 1 .bin instead of copying 606 MB')
-    args, pos = p.parse_known_args()
-    bad = [a for a in pos if a.startswith('-')]
-    if bad:
-        p.error('unrecognized arguments: %s' % ' '.join(bad))
-    if len(pos) > 2:
-        p.error('unrecognized arguments: %s' % ' '.join(pos[2:]))
+    p.add_argument('src', nargs='?')
+    p.add_argument('out', nargs='?')
+    args = p.parse_intermixed_args()
 
-    src = pos[0] if pos else os.path.join(HERE, 'saturn')
+    src = args.src or os.path.join(HERE, 'saturn')
     if os.path.isdir(src):
         src = os.path.join(src, ORIG_NAME)
     if not os.path.isfile(src):
         raise SystemExit(f'{src} not found: supply {ORIG_NAME}')
     verify_disc(src)
 
-    out_dir = pos[1] if len(pos) > 1 else os.path.join(HERE, 'dist', 'saturn')
+    out_dir = args.out or os.path.join(HERE, 'dist', 'saturn')
     out_bin = os.path.join(out_dir, OUT_BIN_NAME)
     out_cue = os.path.join(out_dir, OUT_CUE_NAME)
 

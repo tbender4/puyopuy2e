@@ -189,18 +189,18 @@ Output, the files of `puyopuy2e.zip` (by `--logo` mode):
 
 | `--logo` | File | Size | CRC32 | SHA1 | From |
 |---|---|---|---|---|---|
-| `no-red-puyos` (default) | pp2e-17241.ic32 | 524288 | 30aa4d00 | c5bd269591ce93e900131e439a744fd0f14bb263 | epr-17241.ic32, changed |
-| `no-red-puyos` (default) | pp2e-17240.ic31 | 524288 | 9df07ff6 | 322029b9f355135bf7d0080b2d9f89a7f259e6c8 | epr-17240.ic31, changed |
-| `with-red-puyos` | pp2e-17241.ic32 | 524288 | fd4fbd02 | a159f3c00406fb4f584ec78110f35d6b3e415314 | epr-17241.ic32, changed |
-| `with-red-puyos` | pp2e-17240.ic31 | 524288 | 9931ce5b | e8b852b99eb333ecfae3ebfbc0f8b95cdba1c235 | epr-17240.ic31, changed |
-| `original` | pp2e-17241.ic32 | 524288 | 3a6607d1 | 1ed6b81ab2c480c3281d01ede7a7f67f539ed358 | epr-17241.ic32, changed |
-| `original` | pp2e-17240.ic31 | 524288 | c375d2c5 | 87a6454ec52c6f57413203a53095e762cf36ae67 | epr-17240.ic31, changed |
+| `no-red-puyos` (default) | pp2e-17241.ic32 | 524288 | 3661b608 | e799cf36fd023b9d2013466aec54ca8bd56f7b92 | epr-17241.ic32, changed |
+| `no-red-puyos` (default) | pp2e-17240.ic31 | 524288 | c2edf254 | 3fb1cf6b9b12263a210b925f34c1404df2c1e099 | epr-17240.ic31, changed |
+| `with-red-puyos` | pp2e-17241.ic32 | 524288 | 0d07efe9 | d1b5c318309a7da24b48fd3020cb2e2c65b52a85 | epr-17241.ic32, changed |
+| `with-red-puyos` | pp2e-17240.ic31 | 524288 | e7f5f2de | 1b868f493c34de1bd22bee90143116c12a8768c7 | epr-17240.ic31, changed |
+| `original` | pp2e-17241.ic32 | 524288 | 9c546529 | ff0cfa2e0bad7cdbd80db96074eae53aca65a498 | epr-17241.ic32, changed |
+| `original` | pp2e-17240.ic31 | 524288 | 13f76e95 | 56d8e070684084def73ce898c1e003abc6e6b4be | epr-17240.ic31, changed |
 | all | epr-17239.ic4 | 524288 | 020ff6ef | 6095b8277b47a6fd7a9721f15a70ae5bf6be9b1a | copied |
 
 The two 16-bit EPROM checksums at `0x1f8`/`0x1fa` are recalculated for each build so the
 cabinet `TEST SYSTEM -> MEMORY TEST` passes (`GOOD`). The `puyopuy2e` entry of
-mame2003-plus expects the default (`no-red-puyos`) CRCs; the other two variants run there
-only if the core does not check them. To try any variant in a recent MAME
+mame2003-plus expects the CRCs of Zanac's upstream build (`30aa4d00`/`9df07ff6`), not these;
+these builds run there only if the core does not check them. To try any variant in a recent MAME
 instead, put the two `pp2e` files in a copy of `puyopuy2.zip` under the names
 `epr-17241.ic32` and `epr-17240.ic31` and start `puyopuy2`.
 

@@ -23,16 +23,15 @@ def main():
     p = argparse.ArgumentParser(usage='make_puyopuy2e.py [--logo MODE] [FOLDER | puyopuy2.zip] [OUT_FOLDER]')
     p.add_argument('--logo', choices=logo.MODES, default=logo.DEFAULT_MODE,
                    help='title logo variant (default: %(default)s)')
-    args, pos = p.parse_known_args()
-    bad = [a for a in pos if a.startswith('-')]
-    if bad:
-        p.error('unrecognized arguments: %s' % ' '.join(bad))
-    src = pos[0] if pos else HERE
+    p.add_argument('src', nargs='?')
+    p.add_argument('out', nargs='?')
+    args = p.parse_intermixed_args()
+    src = args.src or HERE
     if os.path.isdir(src):
         src = os.path.join(src, 'puyopuy2.zip')
     if not os.path.exists(src):
         raise SystemExit('%s not found: put puyopuy2.zip (the MAME set) there' % src)
-    out_dir = pos[1] if len(pos) > 1 else os.path.dirname(os.path.abspath(src))
+    out_dir = args.out or os.path.dirname(os.path.abspath(src))
     prog = romset.read_program(src)
     sound = romset.read_sound(src)
     new = build.build(prog, args.logo)

@@ -62,15 +62,15 @@ def page_words(kind, lines, address):
     return out
 
 
-def apply(prog, text):
-    """write the English pages and point the original pages at them"""
-    at = TEXT_AT
+def apply(prog, text, at=TEXT_AT, end=TEXT_END):
+    """write the English pages from at (below end), point the original pages at them; returns the bytes written"""
+    start = at
     for orig, kind, lines in text:
         words = page_words(kind, lines, at)
         data = struct.pack('>%dH' % len(words), *words)
-        if at + len(data) > TEXT_END:
+        if at + len(data) > end:
             raise SystemExit('the English text does not fit')
         prog[at:at + len(data)] = data
         prog[orig:orig + 6] = struct.pack('>HI', 0xfffe, at)
         at += len(data)
-    return at - TEXT_AT
+    return at - start

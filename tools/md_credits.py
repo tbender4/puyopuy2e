@@ -28,7 +28,7 @@ SHARED = {8: (9, 7)}    # group 8's columns 9.. reuse group 9's tiles from its c
 MACRONS = {'ā': 'a', 'ō': 'o', 'ū': 'u'}   # Spleen has ASCII only
 
 
-def _text(s):
+def text_columns(s):
     """16-row bitmap of s in Spleen 8x16, each glyph trimmed to its ink + 1 px, spaces 4 px"""
     f = font.font()
     cols = []
@@ -84,7 +84,7 @@ def apply(prog, streams, at, end):
         cols = _columns(orig[stream_of[k]], first, ncols)
         if k in NAMES:
             name, keep = NAMES[k]
-            text = _pack(_text(name) + [[0] * 16] * 2)   # the kept columns bring their own gap
+            text = _pack(text_columns(name) + [[0] * 16] * 2)   # the kept columns bring their own gap
             if k in SHARED:
                 new_cols.append((text, (SHARED[k][0], SHARED[k][1], ncols - keep)))
             else:

@@ -82,11 +82,11 @@ RULE_EDIT_HARD_AT = 0x017980    # 3 fixed 8-byte records: 80 82 <4 glyph bytes> 
 RULE_EDIT_HARD = ("  NORMAL", "    HARD", "HARD CAP")
 
 
-def _remap(img, table):
+def remap(img, table):
     return [[table[v] for v in row] for row in img]
 
 
-def _render_rule_line_md(text, cells):
+def render_rule_line_md(text, cells):
     """18x2 rule line in Spleen 8x16, white (15) with [bracketed] words in yellow (11)."""
     glyphs = font.font()
     plain = text.replace('[', '').replace(']', '')
@@ -238,7 +238,7 @@ def _draw_mouth_text(clean, cavity, lines, frame_idx):
 
 def patch_mode_select(tiles, tmap, modes, blank, template_base=0x552):
     """Patch Mode Select header (33x3 at 0x000) and animated Carbuncle mouths for `modes`."""
-    hdr = _remap(png.read(os.path.join(labels.ASSETS, 'md_choose_mode.png')), HEADER_REMAP)
+    hdr = remap(png.read(os.path.join(labels.ASSETS, 'md_choose_mode.png')), HEADER_REMAP)
     templates = [_mouth_cavity_and_erase(gfx.block_pixels(tiles, tmap, template_base + f * 0x78, 10, 6, 10), f)
                  for f in range(3)]
     blocks = [(0x000, 33, 3, hdr, None)]
@@ -285,13 +285,13 @@ def apply_p2_join(streams):
 
 def apply_special_rules(streams):
     # 2P Special Rule Select header (0x103017 @ 0x8c0, 33x3, tiles 0x1031bf)
-    hdr = _remap(png.read(os.path.join(labels.ASSETS, 'choose_rule.png')), HEADER_REMAP)
+    hdr = remap(png.read(os.path.join(labels.ASSETS, 'choose_rule.png')), HEADER_REMAP)
     gfx.replace_block(streams.get(0x1031bf), streams.get(0x103017), 0x8c0, 33, 3, hdr)
     # 6 rule descriptions (0x103a20 @ 0x000..0x1af, 18x2 each, tiles 0x103de2).
     # Use blank=0x80 (empty in 0x103de2 and >= 0x78, outside 0x1031bf's 120-tile VRAM range).
     rtiles = streams.get(0x103de2)
     assert not any(rtiles[0x80 * gfx.TILE:0x81 * gfx.TILE])
-    blocks = [(off, 18, 2, _render_rule_line_md(txt, 18), 18) for off, txt in SPECIAL_RULES]
+    blocks = [(off, 18, 2, render_rule_line_md(txt, 18), 18) for off, txt in SPECIAL_RULES]
     gfx.replace_blocks(rtiles, streams.get(0x103a20), blocks, blank=0x80)
 
 

@@ -12,7 +12,7 @@ ROOT = os.path.join(HERE, '..')
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(ROOT, 'text'))
 sys.path.insert(0, os.path.join(ROOT, 'font'))
-import font, gfx, labels, levels, logo, md_credits, md_screens, png, script_en, text, titles
+import font, gfx, labels, levels, logo, md_credits, md_screens, script_en, text, titles
 from build import jmp, patch_file
 
 # Bank 0x090000 (font offset must be a 16-bit offset in bank 0x090000; free 0xff from 0x993bf)
@@ -46,18 +46,18 @@ MD_PAGES = (
 # MD addresses used directly (LOGO_TABLES/LOGO_TILES also read by test_build_md)
 LOGO_TABLES = (0x02836a, 0x0285a6)
 LOGO_TILES = 0x0b751d
-YAY_TILES = 0x086fa1
 YAY_LIST = 0x01a2b8
-LEVEL_TILES = 0x0863d1
 LEVEL_TABLE = 0x01a6e2
 
-# Arcade stream address -> MD address, so the arcade titles/labels/logo code runs unchanged
+# Arcade stream address -> MD address, so the arcade titles/labels/levels/logo code runs unchanged
 MD_STREAMS = {
     logo.TILES: LOGO_TILES,
     0x091545: 0x092640,     # tutorial tiles
     0x083f2b: 0x083f37,     # CHAIN + OFFSET
     0x0869e7: 0x086a7f,     # K.O. big
     0x085dc1: 0x085dcd,     # K.O. small
+    0x086f09: 0x086fa1,     # yay
+    levels.STREAM: 0x0863d1,  # level labels
 }
 
 
@@ -72,70 +72,6 @@ class _MDStreams(gfx.Streams):
 def _relocate(blob, old, new, count):
     assert blob.count(old) == count, 'expected %d hits, got %d' % (count, blob.count(old))
     return blob.replace(old, new)
-
-
-def _apply_text(prog, at, end):
-    assert len(MD_PAGES) == 70
-    for idx, orig in enumerate(MD_PAGES):
-        _, kind, lines = script_en.TEXT[idx]
-        # MD page 59 always shows both rotate buttons (no arcade TURN DIRECTION DIP switch)
-        if idx == 59:
-            lines = [l for l in lines if l != 'IFTURN']
-        assert at % 2 == 0
-        words = text.page_words(kind, lines, at)
-        data = struct.pack('>%dH' % len(words), *words)
-        if at + len(data) > end:
-            raise SystemExit('English text does not fit')
-        prog[at:at + len(data)] = data
-        prog[orig:orig + 6] = struct.pack('>HI', 0xfffe, at)
-        at += len(data)
-    return at
-
-
-def _apply_yay(prog, streams):
-    # labels.apply_yay writes the arcade list address; MD's list is at YAY_LIST
-    yimg = png.read(os.path.join(labels.ASSETS, 'yay.png'))
-    ytiles = streams.get(YAY_TILES)
-    sprites = [(-32, 0x0f08, 16 * k, -48 + 32 * k, 4, 4) for k in range(3)] + \
-              [(0, 0x0c08, 48 + 4 * k, -48 + 32 * k, 4, 1) for k in range(3)]
-    data = struct.pack('>H', len(sprites))
-    for sy, size, first, sx, w, h in sprites:
-        data += struct.pack('>hHHh', sy, size, 0x0680 + first, sx)
-        for c in range(w):
-            for r in range(h):
-                cell = [row[sx + 48 + 8 * c:sx + 56 + 8 * c] for row in yimg[sy + 32 + 8 * r:sy + 40 + 8 * r]]
-                gfx.tile_put(ytiles, first + h * c + r, cell)
-    prog[YAY_LIST:YAY_LIST + len(data)] = data
-    for t in range(60, 69):
-        gfx.tile_put(ytiles, t, [[0] * 8 for _ in range(8)])
-
-
-def _apply_levels(prog, streams, at, end):
-    pieces, lists = {}, []
-    for lines in levels.LABELS:
-        sprites = []
-        y0 = -4 * len(lines)
-        for row, word in enumerate(lines):
-            x0 = -((levels.PITCH * len(word) - 1) // 2)
-            for i in range(0, len(word), levels.PER_PIECE):
-                k = pieces.setdefault(word[i:i + levels.PER_PIECE], len(pieces))
-                sprites.append((y0 + 8 * row, 0x0408, levels.ATTR + 2 * k, x0 + levels.PITCH * i))
-        lists.append(sprites)
-    assert len(pieces) <= 10
-    tiles = streams.get(LEVEL_TILES)
-    for part, k in pieces.items():
-        labels.put_tiles(tiles, levels.piece_pixels(part), [[2 * k, 2 * k + 1]])
-    for t in range(2 * len(pieces), 20):
-        gfx.tile_put(tiles, t, [[0] * 8 for _ in range(8)])
-    for level, sprites in enumerate(lists):
-        assert at % 2 == 0
-        data = struct.pack('>H', len(sprites)) + b''.join(struct.pack('>hHHh', *s) for s in sprites)
-        if at + len(data) > end:
-            raise SystemExit('levels: no room')
-        prog[at:at + len(data)] = data
-        prog[LEVEL_TABLE + 4 * level:LEVEL_TABLE + 4 * level + 4] = struct.pack('>I', at)
-        at += len(data)
-    return at
 
 
 def update_md_checksum(prog):
@@ -163,7 +99,11 @@ def build(prog, logo_mode=logo.DEFAULT_MODE):
     jmp(prog, OP03_PATCH[0], HOOKS, OP03_PATCH[1])
     jmp(prog, OP0B_PATCH[0], HOOKS + 0x10, OP0B_PATCH[1])
 
-    at = _apply_text(prog, DATA_AT, DATA_END)
+    assert len(MD_PAGES) == 70
+    # MD page 59 always shows both rotate buttons (no arcade TURN DIRECTION DIP switch)
+    pages = [(md, kind, [l for l in lines if l != 'IFTURN'] if i == 59 else lines)
+             for i, (md, (_, kind, lines)) in enumerate(zip(MD_PAGES, script_en.TEXT))]
+    at = DATA_AT + text.apply(prog, pages, DATA_AT, DATA_END)
     print('English text: %d bytes' % (at - DATA_AT))
 
     # 4. Shared arcade graphics + Mega Drive-exclusive screens
@@ -176,13 +116,13 @@ def build(prog, logo_mode=logo.DEFAULT_MODE):
     labels.apply_allclear(streams)
     labels.apply_chain(streams)
     labels.apply_knockout(streams)
-    _apply_yay(prog, streams)
+    labels.apply_yay(prog, streams, YAY_LIST)
     # Tower, Nomi, Continue, and Act Against AIDS (exact same addresses as arcade)
     labels.apply_tower(streams)
     labels.apply_here(streams)
     labels.apply_gameover(streams)
     labels.apply_aids(streams)
-    at = _apply_levels(prog, streams, at, DATA_END)
+    at = levels.apply(prog, streams, at, DATA_END, LEVEL_TABLE)
     at = md_screens.apply(prog, streams, at, DATA_END)
     at = md_credits.apply(prog, streams, at, DATA_END)
     print('MD extra data total: %d bytes (ends at 0x%06x)' % (at - DATA_AT, at))

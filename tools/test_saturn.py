@@ -508,7 +508,7 @@ def _check_redraw(old, new, parts, keep_rows=0):
     t_new = game_arts.lzss_decompress(new['parts'][1])[0]
     for j, p in enumerate(old['parts'][2:], 2):
         if j not in parts:
-            for c in saturn_credits._cells(p):
+            for c in saturn_credits.map_cells(p):
                 t = (c & 0x7fff) * 32
                 assert t_old[t:t + 32] == t_new[t:t + 32]
     if not keep_rows:

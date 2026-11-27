@@ -33,8 +33,8 @@ PITCH = 5          # 4 + the shadow
 PER_PIECE = 3      # letters in 16 pixels
 
 
-def piece_pixels(text):
-    img = [[0] * 16 for _ in range(8)]
+def piece_pixels(text, width=16):
+    img = [[0] * width for _ in range(8)]
     for k, ch in enumerate(text):
         for y, row in enumerate(FONT[ch]):
             for x, c in enumerate(row):
@@ -42,12 +42,12 @@ def piece_pixels(text):
                     xx = PITCH * k + x
                     img[y][xx] = 7
                     for dy, dx in ((1, 0), (0, 1), (1, 1)):
-                        if y + dy < 8 and xx + dx < 16 and img[y + dy][xx + dx] == 0:
+                        if y + dy < 8 and xx + dx < width and img[y + dy][xx + dx] == 0:
                             img[y + dy][xx + dx] = 1
     return img
 
 
-def apply(prog, streams, at, end):
+def apply(prog, streams, at, end, table=TABLE):
     """redraws the glyph tiles, writes the lists from at (below end); returns where they end"""
     pieces = {}
     lists = []
@@ -83,6 +83,6 @@ def apply(prog, streams, at, end):
         if at + len(data) > end:
             raise SystemExit('levels: no room')
         prog[at:at + len(data)] = data
-        prog[TABLE + 4 * level:TABLE + 4 * level + 4] = struct.pack('>I', at)
+        prog[table + 4 * level:table + 4 * level + 4] = struct.pack('>I', at)
         at += len(data)
     return at

@@ -12,8 +12,10 @@ import bps, build, ips, logo, make_puyopuy2e, make_puyopuy2e_md, make_puyopuy2e_
 import saturn_build, saturn_iso
 
 
-def _crc32(data):
-    return zlib.crc32(data) & 0xffffffff
+def _script(name):
+    """a tools/ patcher script as shipped (patch.sh with LF line ends)"""
+    raw = Path(HERE, 'tools', name).read_bytes()
+    return raw.replace(b'\r\n', b'\n') if name.endswith('.sh') else raw
 
 
 def _arcade_readme(mode, even_crc, odd_crc):
@@ -47,14 +49,12 @@ def build_arcade_ips(src_zip, out_dir, modes):
     orig_prog = romset.read_program(src_zip)
     orig_even, orig_odd = romset.split_program(orig_prog)
     ev_name, od_name = romset.PROGRAM[0][0], romset.PROGRAM[1][0]
-    patch_ps1 = Path(HERE, 'tools', 'patch.ps1').read_bytes()
-    patch_sh = Path(HERE, 'tools', 'patch.sh').read_bytes().replace(b'\r\n', b'\n')
     artifacts = []
     for mode in modes:
         new_prog = build.build(orig_prog, mode)
         new_even, new_odd = romset.split_program(new_prog)
         want = make_puyopuy2e.EXPECTED[mode]
-        got = (_crc32(new_even), _crc32(new_odd))
+        got = (zlib.crc32(new_even), zlib.crc32(new_odd))
         assert got == want, f'arcade {mode}: CRC mismatch {got} != {want}'
 
         p_even = ips.encode(orig_even, new_even)
@@ -70,8 +70,8 @@ def build_arcade_ips(src_zip, out_dir, modes):
                 (f'{ev_name}.ips', p_even, 0o644),
                 (f'{od_name}.ips', p_odd, 0o644),
                 ('README.txt', readme, 0o644),
-                ('patch.ps1', patch_ps1, 0o644),
-                ('patch.sh', patch_sh, 0o755),
+                ('patch.ps1', _script('patch.ps1'), 0o644),
+                ('patch.sh', _script('patch.sh'), 0o755),
             ):
                 zi = zipfile.ZipInfo(name, date_time=(2024, 1, 1, 0, 0, 0))
                 zi.compress_type = zipfile.ZIP_DEFLATED
@@ -85,12 +85,7 @@ def build_arcade_ips(src_zip, out_dir, modes):
 
 def build_md_ips(src_md, out_dir, modes):
     """Build and round-trip-verify Mega Drive IPS patches for each logo mode."""
-    orig = Path(src_md).read_bytes()
-    if len(orig) != make_puyopuy2e_md.ORIG_SIZE or _crc32(orig) != make_puyopuy2e_md.ORIG_CRC:
-        raise SystemExit(
-            f'unexpected Mega Drive ROM (got {len(orig)} bytes CRC32 {_crc32(orig):08x}; '
-            f'need {make_puyopuy2e_md.ORIG_NAME}: {make_puyopuy2e_md.ORIG_SIZE} bytes CRC32 {make_puyopuy2e_md.ORIG_CRC:08x})'
-        )
+    orig = make_puyopuy2e_md.read_rom(src_md)
     artifacts = []
     for mode in modes:
         built = bytes(md_build.build(orig, mode))
@@ -99,7 +94,7 @@ def build_md_ips(src_md, out_dir, modes):
         fname = f'puyopuy2e-md-{mode}.ips'
         fpath = os.path.join(out_dir, fname)
         Path(fpath).write_bytes(patch)
-        crc = _crc32(built)
+        crc = zlib.crc32(built)
         print(f'verified {fname} ({len(patch)} bytes, patched ROM CRC32 {crc:08x})')
         artifacts.append(fpath)
     return artifacts
@@ -176,12 +171,9 @@ def main():
         artifacts.extend(fn(path, args.out, modes))
 
     # Copy auto-patcher helper scripts alongside the generated patches
-    for script, unix_nl in (('patch.ps1', False), ('patch.sh', True)):
-        raw = Path(HERE, 'tools', script).read_bytes()
-        if unix_nl:
-            raw = raw.replace(b'\r\n', b'\n')
+    for script in ('patch.ps1', 'patch.sh'):
         dst = os.path.join(args.out, script)
-        Path(dst).write_bytes(raw)
+        Path(dst).write_bytes(_script(script))
         artifacts.append(dst)
 
     write_checksums(args.out, artifacts)

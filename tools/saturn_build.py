@@ -1,8 +1,8 @@
 """tools/saturn_build.py - Builds English patched files for Sega Saturn Puyo Puyo 2 (T-6601G).
 
-Milestone A: patches /0;1 ASCII strings + sprite lists and ports all shared MD/Arcade English
-graphics across the 8 Bits Lab .BIN banks (DEMO_G00/03/04/05/06, GFILE08/09, FACE_G03),
-reusing existing Arcade/MD helpers directly."""
+Patches /0;1 ASCII strings, sprite lists and the tutorial text engine, ports the shared MD/Arcade
+English graphics across the 8 Bits Lab .BIN banks (reusing the Arcade/MD helpers directly), draws
+the Saturn-native H_PUYODT.BIN screens and the Game Arts files (PUYOSHOW.FLD, EFFECT.DAT)."""
 import os, struct, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -10,7 +10,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(ROOT, 'font'))
 sys.path.insert(0, os.path.join(ROOT, 'text'))
-import font, game_arts, gfx, labels, levels, logo, md_screens, png, saturn_arch, saturn_credits, saturn_cutscenes, saturn_iso, saturn_ui, script_en, text, title_font, titles
+import font, game_arts, gfx, labels, levels, logo, md_screens, png, saturn_arch, saturn_credits, saturn_cutscenes, saturn_iso, saturn_ui, script_en, text, titles
 
 RAM_BASE = 0x06008000
 TEXT_PUT = 0x009488
@@ -324,37 +324,6 @@ def _apply_logo(prog, chunk, mode):
         chunk[0x8a0:0xc00] = saturn_arch.tiles_to_sprites(work[0x8a0:0xc00], LOGO_RED_CROP_SPECS)
 
 
-def _apply_titles_and_allclear(tut_tiles, tut_map, allclear_map):
-    # Same as titles.apply + labels.apply_allclear, using Saturn's empty tile 0x08 (not MD 0x1c)
-    letters = sorted(set(''.join(titles.TITLES)) - {' '})
-    assert titles.FIRST_TILE + 2 * len(letters) <= titles.LAST_TILE + 1
-    slot = {}
-    for k, ch in enumerate(letters):
-        g = title_font.glyph(ch)
-        top, bot = titles.FIRST_TILE + 2 * k, titles.FIRST_TILE + 2 * k + 1
-        gfx.tile_put(tut_tiles, top, [[titles.COLOUR * v for v in r] for r in g[:8]])
-        gfx.tile_put(tut_tiles, bot, [[titles.COLOUR * v for v in r] for r in g[8:]])
-        slot[ch] = (top, bot)
-    blank = [[0] * 8 for _ in range(8)]
-    for t in range(titles.FIRST_TILE + 2 * len(letters), titles.LAST_TILE + 1):
-        gfx.tile_put(tut_tiles, t, blank)
-    for k, title in enumerate(titles.TITLES):
-        s = title.center(titles.WIDTH)
-        for row in range(2):
-            for col, ch in enumerate(s):
-                v = 0x08 if ch == ' ' else slot[ch][row]
-                i = titles.MAP_AT + 2 * ((2 * k + row) * titles.WIDTH + col)
-                tut_map[i:i + 2] = v.to_bytes(2, 'big')
-
-    img = [[0] * 96 for _ in range(8)] + labels.render(labels.ALL_CLEAR, 96, 16, 0xa, 0x1)
-    for x in range(96):
-        for y in range(23, -1, -1):
-            if img[y][x] == 0xa:
-                img[y][x] = 0x9
-                break
-    gfx.replace_block(tut_tiles, allclear_map, 0x270, 12, 3, img, row_stride=14, blank=0x08)
-
-
 def _apply_levels(prog, chunk):
     # Pack 4 single-sprite words in GFILE08[13] tiles 0..12 so all 5 level lists fit in-place
     # inside their original 18-byte slots (0x2be7e..0x2bed7), never touching live /0;1 BSS.
@@ -363,17 +332,7 @@ def _apply_levels(prog, chunk):
     tiles_buf = bytearray(20 * 32)
     next_tile = 0
     for word, w_tiles in word_specs:
-        px_w = w_tiles * 8
-        img = [[0] * px_w for _ in range(8)]
-        for k, ch in enumerate(word):
-            for y, row in enumerate(levels.FONT[ch]):
-                for x, c in enumerate(row):
-                    if c == '#':
-                        xx = levels.PITCH * k + x
-                        img[y][xx] = 7
-                        for dy, dx in ((1, 0), (0, 1), (1, 1)):
-                            if y + dy < 8 and xx + dx < px_w and img[y + dy][xx + dx] == 0:
-                                img[y + dy][xx + dx] = 1
+        img = levels.piece_pixels(word, w_tiles * 8)
         labels.put_tiles(tiles_buf, img, [list(range(next_tile, next_tile + w_tiles))])
         word_info[word] = (next_tile, w_tiles, levels.PITCH * len(word) - 1)
         next_tile += w_tiles
@@ -394,26 +353,16 @@ def _apply_levels(prog, chunk):
 
 
 def _apply_yay(prog, chunk):
-    yimg = png.read(os.path.join(labels.ASSETS, 'yay.png'))
     tiles_buf = bytearray(69 * 32)
-    sprites = [(-32, 0x0f02, 16 * k, -48 + 32 * k, 4, 4) for k in range(3)] + \
-              [(0, 0x0c02, 48 + 4 * k, -48 + 32 * k, 4, 1) for k in range(3)]
-    data = struct.pack('>H', len(sprites))
-    for sy, sz_flag, first, sx, w, h in sprites:
-        data += struct.pack('>hHHh', sy, sz_flag, 0x0680 + first, sx)
-        for c in range(w):
-            for r in range(h):
-                cell = [row[sx + 48 + 8 * c:sx + 56 + 8 * c] for row in yimg[sy + 32 + 8 * r:sy + 40 + 8 * r]]
-                gfx.tile_put(tiles_buf, first + h * c + r, cell)
-    prog[YAY_LIST:YAY_LIST + len(data)] = data
+    labels.apply_yay(prog, _Streams({0x86f09: tiles_buf}), YAY_LIST, 0x02)
     chunk[0x000:0x8a0] = saturn_arch.tiles_to_sprites(tiles_buf, YAY_HEAD_SPECS)
 
 
 def _apply_special_rules(hdr_map, hdr_tiles, rule_map, rule_tiles):
-    hdr = md_screens._remap(png.read(os.path.join(labels.ASSETS, 'choose_rule.png')), md_screens.HEADER_REMAP)
+    hdr = md_screens.remap(png.read(os.path.join(labels.ASSETS, 'choose_rule.png')), md_screens.HEADER_REMAP)
     gfx.replace_block(hdr_tiles, hdr_map, 0x8c0, 33, 3, hdr)
     # 0x9c is empty, >= 0x78 (outside header tileset), and unreferenced in rule_map so it never enters the pool
-    blocks = [(off, 18, 2, md_screens._render_rule_line_md(txt, 18), 18) for off, txt in md_screens.SPECIAL_RULES]
+    blocks = [(off, 18, 2, md_screens.render_rule_line_md(txt, 18), 18) for off, txt in md_screens.SPECIAL_RULES]
     gfx.replace_blocks(rule_tiles, rule_map, blocks, blank=0x9c)
     assert not any(rule_tiles[0x9c * gfx.TILE:0x9d * gfx.TILE])
 
@@ -449,6 +398,8 @@ def build(src_bin, logo_mode=logo.DEFAULT_MODE):
     streams = _Streams({
         0x0900be: banks['GFILE09.BIN']['chunks'][0],      # Pause (raw)
         0x091545: banks['GFILE09.BIN']['chunks'][4],      # Tutorial tiles (VDP2)
+        0x044ec8: banks['DEMO_G06.BIN']['chunks'][2],     # Tutorial titles map (VDP2)
+        0x045503: banks['DEMO_G06.BIN']['chunks'][7],     # Tutorial ALL CLEAR map (VDP2)
         0x0456fa: banks['DEMO_G06.BIN']['chunks'][9],     # Tutorial ASK map (VDP2)
         0x083f2b: g8_chain,                               # Chain + Offset (tail unswizzled)
         0x0869e7: ko_big_tiles,                           # KO Big (unswizzled)
@@ -484,11 +435,8 @@ def build(src_bin, logo_mode=logo.DEFAULT_MODE):
     f3_win[22 * 32:34 * 32] = saturn_arch.tiles_to_sprites(f3_win[22 * 32:34 * 32], NOMI_YAY_SPECS)
 
     # 4. Saturn-adjusted VDP2 screens (blank tile offsets + 4th Mode Select option)
-    _apply_titles_and_allclear(
-        banks['GFILE09.BIN']['chunks'][4],
-        banks['DEMO_G06.BIN']['chunks'][2],
-        banks['DEMO_G06.BIN']['chunks'][7],
-    )
+    titles.apply(streams, blank=0x08)
+    labels.apply_allclear(streams, blank=0x08)
     md_screens.patch_mode_select(banks['DEMO_G06.BIN']['chunks'][13], banks['DEMO_G06.BIN']['chunks'][12],
                                  SATURN_MODES, blank=0x04)
     _apply_special_rules(
