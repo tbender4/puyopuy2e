@@ -47,8 +47,7 @@ python3 make_puyopuy2e_saturn.py ["PUYO_PUYO_TSU____ (Track 1).bin" | FOLDER] [O
 The default input is `saturn/` (the `.cue` and Track 2 must sit next to Track 1) and the
 default output `dist/saturn/`. `--logo` picks the title logo as for the other versions
 (`no-red-puyos` default, `with-red-puyos`, `original`); `--fast` overlays onto an existing
-output Track 1 instead of copying 606 MB. Every translated file is written back in place
-inside its original disc sectors, so the image keeps its size and layout.
+output Track 1 instead of copying 606 MB.
 
 ## What is translated
 
@@ -78,12 +77,11 @@ inside its original disc sectors, so the image keeps its size and layout.
 - Cockadoodle's two captions, and `THIRTY MINUTES / LATER` for `30分経過`
 - Schezo's ヘンタイ / タイヘン signs keep the Japanese (the swap is the joke) with `PERVERT` /
   `TERRIBLE` under them
-- English subtitles for the skits' voice lines (so far Schezo's in Tsuu mode), timed to the Saturn
-  voice track. `STORY DEMO` on OPTIONS page 2 has new options: 
+- English subtitles for the voice lines of all 74 skits (Normal and Tsuu mode). `STORY DEMO` on OPTIONS page 2 has new options: 
     - `SUBTITLES`: at the bottom (default),
     - `SPEAKER`: next to whoever speaks
     - `SIGNS ONLY`: only translated signs, no voice subtitles.
-    - `OFF`: no skits, as before
+    - `OFF`: no skits
 
 Translations are from Domino054's [translated cutscene videos](https://youtu.be/aKZwf3sSVWM). Thank you for graciously permitting use of the translation!
 

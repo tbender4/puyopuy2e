@@ -1,11 +1,12 @@
 """tools/saturn_iso.py - Sega Saturn Mode 1/2352 sector codec and ISO-9660 file patcher.
 
 Stdlib-only ECMA-130 Mode 1/2352 (Sync, BCD MSF, EDC, Reed-Solomon P/Q ECC) encoder and
-in-place flat-root ISO-9660 reader/patcher for Sega Saturn Track 1 .bin/.cue images."""
+flat-root ISO-9660 reader/patcher for Sega Saturn Track 1 .bin/.cue images."""
 import os, re, shutil, struct
 
 SECTOR_RAW = 2352
 SECTOR_USER = 2048
+POSTGAP = 150           # sectors between the data track and the audio track (2 s)
 PREGAP = 150
 SYNC = b'\x00' + b'\xff' * 10 + b'\x00'
 _CUE_FILE_RE = re.compile(r'(?im)^(\s*FILE\s+)(?:"([^"]+)"|(\S+))')
@@ -208,8 +209,9 @@ def _write_out_cue(out_bin, out_cue, cue_text, extras):
 def patch_iso(src_bin, out_bin, replacements, out_cue=None, fresh=True):
     """Patch files in-place into a Mode 1/2352 Saturn Track 1 image.
 
-    shortcut: in-place sector replacement only; add free-LBA relocation only if a translated
-    file actually exceeds its original ISO sector allocation.
+    A file that outgrows its sectors (PUYOSHOW.FLD with the skit subtitles) moves to the end of
+    the track, followed by a new 150-sector gap; the track grows by that much, so the volume
+    size and the entries pointing past the track (SEGACDDA, into the audio track) move along.
 
     Defaults to fresh=True (copies src_bin -> out_bin for deterministic builds). Pass
     fresh=False only to overlay onto an existing out_bin of the same size (<1s dev loop)."""
@@ -224,49 +226,72 @@ def patch_iso(src_bin, out_bin, replacements, out_cue=None, fresh=True):
 
     with open(src_bin, 'rb') as sf:
         entries = parse_iso(sf)
+        pvd = bytearray(_read_sector_user(sf, 16))
+    track_end = os.path.getsize(src_bin) // SECTOR_RAW
 
-    # Validate all replacements before touching disk
+    # Validate all replacements before touching disk; files that outgrow their sectors move to the end
     staged = []
+    end = track_end
     for raw_name, new_data in replacements.items():
         key = _norm_name(raw_name)
         if key not in entries:
             raise KeyError(f'file not found in ISO root: {raw_name}')
         ent = entries[key]
-        cap = ent['sectors'] * SECTOR_USER
-        if len(new_data) > cap:
-            raise ValueError(
-                f'{key}: {len(new_data)} bytes exceeds allocated {ent["sectors"]} sectors ({cap} bytes)'
-            )
-        staged.append((key, ent, new_data))
+        lba, sectors = ent['lba'], ent['sectors']
+        if len(new_data) > sectors * SECTOR_USER:
+            lba, sectors = end, (len(new_data) + SECTOR_USER - 1) // SECTOR_USER
+            end += sectors
+        staged.append((key, ent, new_data, lba, sectors))
+    growth = end - track_end + (POSTGAP if end > track_end else 0)
 
     out_dir = os.path.dirname(out_bin)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
-    need_copy = fresh or not os.path.isfile(out_bin) or os.path.getsize(out_bin) != os.path.getsize(src_bin)
+    out_size = (track_end + growth) * SECTOR_RAW
+    need_copy = fresh or not os.path.isfile(out_bin) or os.path.getsize(out_bin) != out_size
     if need_copy:
         shutil.copyfile(src_bin, out_bin)
 
     dir_cache = {}
     summary = {}
+
+    def dir_sector(of, dsec):
+        # read from out_bin to preserve sibling overlays
+        if dsec not in dir_cache:
+            dir_cache[dsec] = bytearray(_read_sector_user(of, dsec))
+        return dir_cache[dsec]
+
     with open(out_bin, 'r+b') as of:
-        for key, ent, new_data in staged:
-            lba = ent['lba']
-            orig_sectors = ent['sectors']
-            for i in range(orig_sectors):
+        for key, ent, new_data, lba, sectors in staged:
+            for i in range(sectors):
                 chunk = bytes(new_data[i * SECTOR_USER:(i + 1) * SECTOR_USER]).ljust(SECTOR_USER, b'\x00')
                 of.seek((lba + i) * SECTOR_RAW)
                 of.write(encode_mode1_sector(lba + i, chunk))
 
-            # Update LE + BE file size in root directory sector (read from out_bin to preserve sibling overlays)
-            dsec = ent['dir_sec']
-            if dsec not in dir_cache:
-                dir_cache[dsec] = bytearray(_read_sector_user(of, dsec))
-            doff = ent['dir_off']
+            # Update LE + BE file LBA and size in the root directory sector
+            sec, doff = dir_sector(of, ent['dir_sec']), ent['dir_off']
             # keep the original size when a file shrinks: MAME's Saturn CD loader hangs on a shrunk H_PUYODT.BIN
             size = max(len(new_data), ent['size'])
-            struct.pack_into('<I', dir_cache[dsec], doff + 10, size)
-            struct.pack_into('>I', dir_cache[dsec], doff + 14, size)
-            summary[key] = {'lba': lba, 'old_size': ent['size'], 'new_size': len(new_data), 'sectors': orig_sectors}
+            struct.pack_into('<I', sec, doff + 2, lba)
+            struct.pack_into('>I', sec, doff + 6, lba)
+            struct.pack_into('<I', sec, doff + 10, size)
+            struct.pack_into('>I', sec, doff + 14, size)
+            summary[key] = {'lba': lba, 'old_size': ent['size'], 'new_size': len(new_data), 'sectors': sectors}
+
+        if growth:
+            for lba in range(end, track_end + growth):                  # the new gap before the audio track
+                of.seek(lba * SECTOR_RAW)
+                of.write(encode_mode1_sector(lba, bytes(SECTOR_USER)))
+            for ent in entries.values():                                # entries in the audio track move with it
+                if ent['lba'] >= track_end:
+                    sec, doff = dir_sector(of, ent['dir_sec']), ent['dir_off']
+                    struct.pack_into('<I', sec, doff + 2, ent['lba'] + growth)
+                    struct.pack_into('>I', sec, doff + 6, ent['lba'] + growth)
+            volume = struct.unpack_from('<I', pvd, 80)[0] + growth
+            struct.pack_into('<I', pvd, 80, volume)
+            struct.pack_into('>I', pvd, 84, volume)
+            of.seek(16 * SECTOR_RAW)
+            of.write(encode_mode1_sector(16, bytes(pvd)))
 
         for dsec, sec_buf in dir_cache.items():
             of.seek(dsec * SECTOR_RAW)

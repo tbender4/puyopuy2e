@@ -54,10 +54,11 @@ def test_bps_edge_cases():
         with tempfile.TemporaryDirectory() as td:
             t = Path(td)
             (t / 'src.bin').write_bytes(src)
-            (t / 'p.bps').write_bytes(bps.encode(src, bytes(dst)))
+            grown = bytes(dst) + b'x' * 10      # Saturn Track 1 grows (PUYOSHOW.FLD moves to its end)
+            (t / 'p.bps').write_bytes(bps.encode(src, grown))
             subprocess.run(['sh', os.path.join(ROOT, 'tools', 'patch.sh'), 'src.bin', 'p.bps', 'out.bin'],
                            cwd=td, check=True, capture_output=True)
-            assert (t / 'out.bin').read_bytes() == bytes(dst)
+            assert (t / 'out.bin').read_bytes() == grown
             assert 'FILE "PUYO_PUYO_TSU____ (Track 2).bin"' in (t / 'Puyo Puyo 2 (English).cue').read_text()
         print('PASS patch.sh applies a BPS patch')
 

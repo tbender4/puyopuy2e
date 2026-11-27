@@ -320,7 +320,8 @@ STORY_VALUE = 0x0607A0F9
 STORY_VALUES = (b'OFF', b'SUBTITLES', b'SPEAKER', b'SIGNS ONLY')
 STORY_RECORDS = (0x06079C84, 0x06079C94)    # the OFF / ON text records (attr, x, y, string, end)
 STORY_SHOW = 0x0604290C                 # options page 2: draws the STORY DEMO value (OFF or ON only)
-SKIT_LOAD_LIT = 0x0605322C              # literal holding the PUYOSHOW loader the skit script load calls
+# literals holding the PUYOSHOW loader for the skit script loads: skits; endings (also their container)
+SKIT_LOAD_LITS = (0x0605322C, 0x06053E04)
 SKIT_LOAD, SKIT_SCRIPT = 0x06046360, 0x060E3000
 
 
@@ -367,7 +368,7 @@ def skit_hook(base):
         0x4F22, ('L', 1, 'load'), 0x410B, 0x0009, 0x2F06,     # sts.l pr; jsr loader; mov.l r0,@-r15
         ('L', 1, 'script'), 0x8415, 0x8802, ('BF', 'done'),   # script[5] == 02 (jump to the trampoline)?
         0x8416, 0x620C, 0x8417, 0x600C, 0x4018, 0x202B,       # r0 = its target (u16 LE)
-        0x310C, 0x7108,                                       # r1 = trampoline + 8: 02 t t, 3 targets, mark
+        0x310C,                                               # r1 = trampoline: 02 t t, 3 targets, mark
         0x8419, 0x8800 | mark[0], ('BF', 'done'), 0x841A, 0x8800 | mark[1], ('BF', 'done'),
         ('L', 0, 'mode'), 0x6000, 0x600C, 0x70FF,             # r0 = STORY DEMO - 1
         0xE202, 0x3026, ('BT', 'done'),                       # unsigned > 2: keep the default (bottom)
@@ -397,7 +398,8 @@ def _apply_story_demo(prog):
     assert len(assemble_text_put()) <= STORY_AT - TEXT_PUT and records + len(recs) <= RAM_BASE + TEXT_PUT_END
     prog[STORY_AT:STORY_AT + len(hook + text + recs)] = hook + text + recs
     put(STORY_MAX, b'\x01', bytes([len(STORY_VALUES) - 1]))
-    put(SKIT_LOAD_LIT, struct.pack('>I', SKIT_LOAD), struct.pack('>I', at))
+    for lit in SKIT_LOAD_LITS:
+        put(lit, struct.pack('>I', SKIT_LOAD), struct.pack('>I', at))
     # the value is drawn from record base + 16 * value instead of two cases (same literal slots)
     put(STORY_SHOW + 0x60, struct.pack('>I', STORY_RECORDS[0]), struct.pack('>I', records))
     # mov.l value,r0; mov.b @r0,r0; extu.b; shll2 x2; mov.l records,r4; add r0,r4; mov.l print,r3; jsr; nop

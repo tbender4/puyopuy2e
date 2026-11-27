@@ -2,6 +2,7 @@
 import functools, os, struct
 import game_arts as ga
 import font, gfx, labels, md_credits, saturn_credits
+from subtitles_en import SUBTITLES
 
 EFFECT_CAPTION = 3      # EFFECT.DAT part: the 64x15 30分経過 caption map (palette bank 1, colour 15)
 
@@ -316,24 +317,16 @@ def apply_schezo(ents, style=None):
     assert len(ents[SCHEZO]) <= SLOT
 
 
-# Skit voice subtitles. A skit has no text box, so each line is a sprite added to the skit's set
-# and shown by an actor spliced into the script (saturn/skit_script_notes.md). Frames count from
-# the script start; the skit's AIF starts 27 frames later (BizHawk audio dump), so a line's frames
-# are 27 + 60 x its time in the AIF (faster-whisper timestamps of the Japanese voice). The STORY DEMO
-# option picks the placement at run time (saturn_build.skit_hook): SUBTITLES at the bottom, SPEAKER
-# at the speaker's (x, y), SIGNS ONLY none. A \n breaks a line where it reads better.
-# script entry: [(first frame, last frame, (x, y) next to the speaker, text)]
-SUBTITLES = {
-    106: [(339, 669, (95, 118), "Eek! You're that pervert mage!"),     # Arle (95, 183): above her head
-          (699, 837, (223, 216), "Wh-who's the pervert here!?"),       # Schezo (223, 180): under him, the signs are over his head
-          (840, 1041, (95, 118), "You are, you really are."),
-          (1095, 1323, (223, 216), "I'm truly a pure mage of the dark arts!"),
-          (1335, 1491, (223, 216), "Now it's come to this,\nI'll drag you down..."),
-          (1491, 1641, (223, 216), "...to the depths of the Puyo Underworld!")],
-}
-SUBTITLE_BOTTOM = (160, 218)                # bottom-centre of the SUBTITLES placement
-SUBTITLE_IDS = range(0x2F, 0x1F, -1)        # actor slots the skits leave free (106 uses 0x11-0x1A)
+# Skit voice subtitles (text/subtitles_en.py). A skit has no text box, so each line is a sprite added
+# to the skit's set and shown by an actor spliced into the script (saturn/skit_script_notes.md).
+# Lines that don't overlap in time share one actor (a lane), which moves to each line and shows a
+# blank sprite between them, so a skit needs only one or two actor slots. The STORY DEMO option
+# picks the placement at run time (saturn_build.skit_hook): SUBTITLES at the bottom, SPEAKER at the
+# speaker's (x, y), SIGNS ONLY none.
+SUBTITLE_BOTTOM = (160, 218)                # bottom-centre of the SUBTITLES placement (lane 0; lane 1 above)
+SUBTITLE_IDS = (0x2F, 0x2E)                 # actor slots for the two lanes, free in every skit
 SUBTITLE_MARK = b'SB'                       # tells saturn_build.skit_hook that a script has subtitles
+FIRST_LENGTHS = {0x03: 8, 0x13: 3, 0x1B: 3, 0x3F: 2, 0x40: 6}   # lengths of the skits' first instructions
 
 
 def _subtitle_img(text, white, black):
@@ -353,24 +346,28 @@ def _subtitle_img(text, white, black):
 
 
 def _splice(script, actors):
-    """script with the subtitle actors spawned before its first instruction (an 8-byte 03 spawn).
-    That becomes a jump to the end: the instruction, then `02 target`, its three targets (bottom
-    spawns, speaker spawns, none = straight back) and SUBTITLE_MARK, for the hook to pick from;
-    then the two spawn blocks, each jumping back to offset 13, then the actors' code.
-    actors: [(actor id, bottom (x, y), speaker (x, y), code)]"""
-    assert script[5] == 0x03, 'first instruction is not a spawn'
+    """script with the subtitle actors spawned before its first instructions (the first ones that
+    make 3 bytes, room for a jump; no script jumps into them). Offset 5 jumps to the end: `02 target`,
+    its three targets (bottom spawns, speaker spawns, none) and SUBTITLE_MARK, for the hook to pick
+    from; the two spawn blocks, both jumping on to the moved instructions and back; the actors' code.
+    actors: [(actor id, bottom code, speaker code)]"""
+    n = 0
+    while n < 3:
+        n += FIRST_LENGTHS[script[5 + n]]           # KeyError: a first instruction not seen in the skits
     end = len(script)
-    bottom = end + 8 + 3 + 6 + len(SUBTITLE_MARK)
+    bottom = end + 3 + 6 + len(SUBTITLE_MARK)
     speaker = bottom + 8 * len(actors) + 3
-    code_at = speaker + 8 * len(actors) + 3
+    moved = speaker + 8 * len(actors) + 3
+    code_at = moved + n + 3
     blocks, code = [bytearray(), bytearray()], bytearray()
-    for actor, *xys, body in actors:
-        for block, (x, y) in zip(blocks, xys):
-            block += struct.pack('<BBHhh', 0x03, actor, code_at + len(code), x, y)
-        code += body
-    tramp = script[5:13] + struct.pack('<BHHHH', 0x02, bottom, bottom, speaker, 13) + SUBTITLE_MARK
-    back = struct.pack('<BH', 0x02, 13)
-    out = script[:5] + struct.pack('<BH', 0x02, end) + b'\x0d' * 5 + script[13:] + tramp + blocks[0] + back + blocks[1] + back + code
+    for actor, *bodies in actors:
+        for block, body in zip(blocks, bodies):
+            block += struct.pack('<BBHhh', 0x03, actor, code_at + len(code), 0, 0)
+            code += body
+    tramp = struct.pack('<BHHHH', 0x02, bottom, bottom, speaker, moved) + SUBTITLE_MARK
+    on = struct.pack('<BH', 0x02, moved)
+    out = (script[:5] + struct.pack('<BH', 0x02, end) + b'\x0d' * (n - 3) + script[5 + n:] + tramp + blocks[0] + on
+           + blocks[1] + on + script[5:5 + n] + struct.pack('<BH', 0x02, 5 + n) + code)
     assert len(out) <= 0x1000, 'script slot is 4096 bytes'
     return out
 
@@ -384,16 +381,34 @@ def apply_subtitles(ents):
         bank = max({t[0] for t in table}, key=lambda k: max(light(k + v) for v in range(1, 16)))   # the whitest white
         white = max(range(1, 16), key=lambda v: light(bank + v))
         black = min(range(1, 16), key=lambda v: light(bank + v))
-        actors = []
-        for actor, (first, last, speaker, text) in zip(SUBTITLE_IDS, lines):
+        b, blank = ga.sprites_add(b, pixels, bank, 8, 1, bytes(4))
+        lanes = []                                  # [[(first, last, frame, half width, speaker (x, y))]]
+        for first, last, speaker, text in sorted(lines):
             img = _subtitle_img(text, white, black)
             data = bytearray(len(img[0]) * len(img) // 2)
             _sprite_put(data, 0, img)
             b, frame = ga.sprites_add(b, pixels, bank, len(img[0]), len(img), data)
-            half = len(img[0]) // 2
-            on_screen = lambda x, y: (min(max(x, half + 4), 316 - half), y)
-            actors.append((actor, on_screen(*SUBTITLE_BOTTOM), on_screen(*speaker),
-                           struct.pack('<BBBHBBHB', 0x16, 0x0E, 0x10, first, 0x09, frame, last - first, 0x01)))
+            lane = next((l for l in lanes if l[-1][1] <= first), None)    # touching lines share a lane
+            if lane is None:
+                lanes.append(lane := [])
+            lane.append((first, last, frame, len(img[0]) // 2, speaker))
+        assert len(lanes) <= 2, 'PUYOSHOW %d: more than two lines at once' % entry
+        actors = []
+        for actor, (k, lane) in zip(SUBTITLE_IDS, enumerate(lanes)):
+            bodies = []
+            for place in ('bottom', 'speaker'):
+                code, at = bytearray(b'\x16\x0e'), 0         # anchor bottom-centre
+                for first, last, frame, half, speaker in lane:
+                    x, y = speaker if place == 'speaker' else (SUBTITLE_BOTTOM[0], SUBTITLE_BOTTOM[1] - 28 * k)
+                    x = min(max(x, half + 4), 316 - half)   # on screen
+                    if at == 0:
+                        code += struct.pack('<BH', 0x10, first)
+                    elif first > at:
+                        code += struct.pack('<BBH', 0x09, blank, first - at)
+                    code += struct.pack('<BhhBBH', 0x0A, x, y, 0x09, frame, last - first)
+                    at = last
+                bodies.append(bytes(code + b'\x01'))
+            actors.append((actor, *bodies))
         ents[entry + 1] = ga.sprites_pack(b, pixels)
         assert len(ents[entry + 1]) <= SLOT, 'PUYOSHOW %d: %d bytes' % (entry + 1, len(ents[entry + 1]))
         ents[entry] = _splice(ents[entry], actors)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Self-contained stdlib-only tests for Sega Saturn modding helpers (saturn_iso, saturn_arch)."""
-import os, stat, struct, sys, tempfile
+import os, shutil, stat, struct, sys, tempfile
 
 # Prove pure Python 3 stdlib (no Pillow / external packages)
 class _BlockPIL:
@@ -83,6 +83,7 @@ def test_mode1_and_iso_patcher():
         _make_mini_iso(src_bin, src_cue, src_t2, [
             ('A.BIN', b'A' * 5000),  # 3 sectors (6144 B cap)
             ('B.BIN', b'B' * 3000),  # 2 sectors (4096 B cap)
+            ('C.BIN', b'C' * 100),   # 1 sector; test 5 points it past the track, as SEGACDDA into the audio
         ])
         # Mark source .bin read-only (common for Redump archival dumps)
         os.chmod(src_bin, stat.S_IREAD)
@@ -128,11 +129,38 @@ def test_mode1_and_iso_patcher():
                 assert saturn_iso.read_iso_file(f, 'A.BIN', ents) == b'Q' * 500 + bytes(4500)
                 assert saturn_iso.read_iso_file(f, 'B.BIN', ents) == b'B' * 3000
 
-            # 5. Guardrails: overflow, overwrite src bin (incl. different casing), overwrite src cue (no orphan bin), bad cue dir
+            # 5. A file outgrowing its sectors moves to the end of the track, then a new gap; volume size follows
+            big = bytes(range(256)) * 17                        # 4352 B > B.BIN's 2 sectors
+            saturn_iso.patch_iso(src_bin, out_bin, {'B.BIN': big})
+            assert os.path.getsize(out_bin) == (32 + 3 + saturn_iso.POSTGAP) * saturn_iso.SECTOR_RAW
+            with open(out_bin, 'rb') as f:
+                ents = saturn_iso.parse_iso(f)
+                assert ents['B.BIN']['lba'] == 32 and saturn_iso.read_iso_file(f, 'B.BIN', ents) == big
+                assert saturn_iso.read_iso_file(f, 'A.BIN', ents)[:5000] == b'A' * 5000
+                f.seek(16 * saturn_iso.SECTOR_RAW + 16 + 80)
+                pvd_volume = struct.unpack('<I', f.read(4))[0]
+            with open(src_bin, 'rb') as f:
+                f.seek(16 * saturn_iso.SECTOR_RAW + 16 + 80)
+                assert pvd_volume == struct.unpack('<I', f.read(4))[0] + 3 + saturn_iso.POSTGAP
+            # an entry past the track's end (SEGACDDA, into the audio track) moves with the growth
+            past_bin = os.path.join(td, 'PAST (Track 1).bin')
+            shutil.copyfile(src_bin, past_bin)
+            os.chmod(past_bin, stat.S_IWRITE | stat.S_IREAD)
+            with open(past_bin, 'r+b') as f:
+                c = saturn_iso.parse_iso(f)['C.BIN']
+                sec = bytearray(saturn_iso._read_sector_user(f, c['dir_sec']))
+                struct.pack_into('<I', sec, c['dir_off'] + 2, 40)
+                struct.pack_into('>I', sec, c['dir_off'] + 6, 40)
+                f.seek(c['dir_sec'] * saturn_iso.SECTOR_RAW)
+                f.write(saturn_iso.encode_mode1_sector(c['dir_sec'], bytes(sec)))
+            saturn_iso.patch_iso(past_bin, out_bin, {'B.BIN': big})
+            with open(out_bin, 'rb') as f:
+                assert saturn_iso.parse_iso(f)['C.BIN']['lba'] == 40 + 3 + saturn_iso.POSTGAP
+
+            # 6. Guardrails: overwrite src bin (incl. different casing), overwrite src cue (no orphan bin), bad cue dir
             orphan = os.path.join(src_dir, 'ORPHAN.bin')
             alt_case_src = os.path.join(src_dir, 'disc (track 1).bin')
             checks = [
-                lambda: saturn_iso.patch_iso(src_bin, out_bin, {'B.BIN': b'0' * 4097}),
                 lambda: saturn_iso.patch_iso(src_bin, src_bin, {'A.BIN': b'1'}),
                 lambda: saturn_iso.patch_iso(src_bin, orphan, {'A.BIN': b'1'}, out_cue=src_cue),
                 lambda: saturn_iso.patch_iso(src_bin, out_bin, {'A.BIN': b'1'}, out_cue=os.path.join(td, 'bad.cue')),
@@ -497,28 +525,57 @@ def test_game_arts():
         assert game_arts.container_pack(head, blocks, order) == ents[entry]
         assert game_arts.scene_pack(game_arts.scene_parse(blocks[block])) == blocks[block]
     assert game_arts.scene_pack(game_arts.scene_parse(effect)) == effect
-    # skit subtitles: the script's first spawn jumps to a trampoline: the spawn, `02 bottom`, the
-    # targets bottom / speaker / 13 for saturn_build.skit_hook, the mark; each block spawns one actor
-    # per line (16 0E, 10 first, 09 frame n, 01) and jumps back to 13; one new sprite per line
-    for entry, lines in saturn_cutscenes.SUBTITLES.items():
-        old_s, old_n = ents[entry], len(game_arts.sprites_parse(ents[entry + 1])[0])
-        sub = list(ents)
-        saturn_cutscenes.apply_subtitles(sub)
-        s, table = sub[entry], game_arts.sprites_parse(sub[entry + 1])[0]
+    # skit subtitles: offset 5 jumps to a trampoline: `02 bottom`, the targets bottom / speaker / moved
+    # for saturn_build.skit_hook, the mark; each block spawns one actor per lane and goes on to the
+    # moved first instructions, which jump back after themselves. A lane's code: 16 0E, then per line
+    # (10 first | 09 blank gap) 0A x y 09 frame n, then 01.
+    def check_splice(old_s, s):
+        """the lanes' lines per placement: {block: [(first, last, x, y, frame)]}"""
         end = len(old_s)
-        assert len(table) == old_n + len(lines) and s[:5] == old_s[:5] and s[13:end] == old_s[13:]
-        assert s[5:8] == struct.pack('<BH', 2, end) and s[end:end + 8] == old_s[5:13]
-        jump, bottom, speaker, none = struct.unpack_from('<xHHHH', s, end + 8)
-        assert jump == bottom and none == 13 and s[end + 17:end + 19] == saturn_cutscenes.SUBTITLE_MARK
-        bodies = set()
+        assert s[5:8] == struct.pack('<BH', 2, end) and s[:5] == old_s[:5]
+        jump, bottom, speaker, moved = struct.unpack_from('<xHHHH', s, end)
+        assert jump == bottom and s[end + 9:end + 11] == saturn_cutscenes.SUBTITLE_MARK
+        n = {0x03: 8, 0x13: 3, 0x1B: 3, 0x3F: 8}[old_s[5]]     # 3F (2 bytes) moves with the 40 after it
+        assert s[moved:moved + n + 3] == old_s[5:5 + n] + struct.pack('<BH', 2, 5 + n)
+        assert s[5 + n:end] == old_s[5 + n:] and s[8:5 + n] == b'\x0d' * (n - 3)
+        shown = {}
         for block in (bottom, speaker):
-            for k, (first, last, _, _) in enumerate(lines):
-                op, actor, pc = struct.unpack_from('<BBH', s, block + 8 * k)
-                assert op == 3 and actor in saturn_cutscenes.SUBTITLE_IDS
-                assert s[pc:pc + 10] == struct.pack('<BBBHBBHB', 0x16, 0x0E, 0x10, first, 9, old_n + k, last - first, 1)
-                bodies.add(pc)
-            assert s[block + 8 * len(lines):block + 8 * len(lines) + 3] == struct.pack('<BH', 2, 13)
-        assert len(bodies) == len(lines)        # both placements share the actors' code
+            k, out = block, []
+            while s[k] == 3:
+                actor, pc = struct.unpack_from('<BH', s, k + 1)
+                assert actor in saturn_cutscenes.SUBTITLE_IDS and s[pc:pc + 2] == b'\x16\x0e'
+                pc += 2
+                at, blank = 0, None
+                while s[pc] != 1:
+                    if s[pc] == 0x10:
+                        assert at == 0
+                        at = struct.unpack_from('<H', s, pc + 1)[0]
+                        pc += 3
+                    elif s[pc] == 9:                    # (none when a line starts as the last one ends)
+                        op, f, gap = struct.unpack_from('<BBH', s, pc)
+                        assert op == 9 and blank in (None, f)
+                        blank, at = f, at + gap
+                        pc += 4
+                    op, x, y, op2, frame, n_ = struct.unpack_from('<BhhBBH', s, pc)
+                    assert op == 0x0A and op2 == 9
+                    out.append((at, at + n_, x, y, frame))
+                    at += n_
+                    pc += 9
+                k += 8
+            assert s[k:k + 3] == struct.pack('<BH', 2, moved)
+            shown[block] = sorted(out)
+        return list(shown.values())
+    sub = list(ents)
+    saturn_cutscenes.apply_subtitles(sub)
+    for entry, lines in saturn_cutscenes.SUBTITLES.items():
+        old_n = len(game_arts.sprites_parse(ents[entry + 1])[0])
+        assert len(game_arts.sprites_parse(sub[entry + 1])[0]) == old_n + 1 + len(lines)    # + the blank
+        at_bottom, by_speaker = check_splice(ents[entry], sub[entry])
+        want = sorted((first, last) for first, last, _, _ in lines)
+        assert [l[:2] for l in at_bottom] == want == [l[:2] for l in by_speaker]
+        assert sorted(l[4] for l in at_bottom) == list(range(old_n + 1, old_n + 1 + len(lines)))
+    # the skits cover the first instructions other than an 8-byte spawn: 13 (22), 3F + 40 (28), 1B (114)
+    assert {ents[e][5] for e in saturn_cutscenes.SUBTITLES} >= {0x03, 0x13, 0x3F, 0x1B}
     print('PASS Game Arts LZSS/map units + PUYOSHOW.FLD/EFFECT.DAT byte-exact repack + subtitle splice')
 
 
@@ -616,7 +673,8 @@ def test_real_disc():
         unpacked = {}
         for name, data in repl.items():
             cap = entries[name]['sectors'] * saturn_iso.SECTOR_USER
-            assert len(data) <= cap, f'{mode} {name}: {len(data)} B exceeds ISO cap {cap} B'
+            # PUYOSHOW.FLD grows with the skit subtitles: saturn_iso.patch_iso moves it to the end of the track
+            assert len(data) <= cap or name == 'PUYOSHOW.FLD', f'{mode} {name}: {len(data)} B exceeds ISO cap {cap} B'
             if name == 'H_PUYODT.BIN':
                 assert len(data) <= saturn_arch.LOW_WRAM_SLOT
                 hp_new = saturn_arch.unpack_hpuyodt(data)

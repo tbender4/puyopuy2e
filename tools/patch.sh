@@ -126,7 +126,8 @@ print(c)'
 }
 
 # Saturn Track 1 BPS (only SourceRead/TargetRead, what make_ips.py writes): copy the source,
-# write the new bytes in place, check the three CRC32s with perl or python3.
+# write the new bytes in place (the target may be longer: Track 1 grows), check the three CRC32s
+# with perl or python3.
 apply_bps() {
     src="$1"
     bps="$2"
@@ -148,7 +149,7 @@ apply_bps() {
             }
             p = 4
             nsrc = varint(); ndst = varint(); m = varint(); p += m
-            if (nsrc != ndst) { print "BPS changes the file size (not a puyopuy2e patch)" > "/dev/stderr"; exit 1 }
+            if (ndst < nsrc) { print "BPS shrinks the file (not a puyopuy2e patch)" > "/dev/stderr"; exit 1 }
             pos = 0
             while (p < n - 12) {
                 c = varint(); k = c % 4; len = int(c / 4) + 1
