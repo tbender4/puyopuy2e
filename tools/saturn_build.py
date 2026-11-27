@@ -312,6 +312,99 @@ def _apply_strings(prog):
         prog[off:off + len(new)] = new
 
 
+# STORY DEMO (OPTION 2, 3-byte record y/max/value at 0x0607A0F7, not saved): OFF / SUBTITLES / SPEAKER /
+# SIGNS ONLY instead of OFF / ON. The game only tests it for non-zero, so 1-3 all play the skits.
+STORY_AT = TEXT_PUT_END - 0x100         # in the old text_put slot, after the new one
+STORY_MAX = 0x0607A0F8
+STORY_VALUE = 0x0607A0F9
+STORY_VALUES = (b'OFF', b'SUBTITLES', b'SPEAKER', b'SIGNS ONLY')
+STORY_RECORDS = (0x06079C84, 0x06079C94)    # the OFF / ON text records (attr, x, y, string, end)
+STORY_SHOW = 0x0604290C                 # options page 2: draws the STORY DEMO value (OFF or ON only)
+SKIT_LOAD_LIT = 0x0605322C              # literal holding the PUYOSHOW loader the skit script load calls
+SKIT_LOAD, SKIT_SCRIPT = 0x06046360, 0x060E3000
+
+
+def _sh2(base, items, lits):
+    """SH-2 words from items: u16, ('L', rn, name) = mov.l literal, ('BF'|'BT', label), 'label:';
+    literals {name: u32} are placed after the code, 4-aligned"""
+    pos, pc = {}, base
+    for it in items:
+        if isinstance(it, str):
+            pos[it[:-1]] = pc
+        else:
+            pc += 2
+    pc += pc & 2
+    for name in lits:
+        pos[name] = pc
+        pc += 4
+    out, pc = bytearray(), base
+    for it in items:
+        if isinstance(it, str):
+            continue
+        if isinstance(it, int):
+            w = it
+        elif it[0] == 'L':
+            d = (pos[it[2]] - ((pc & ~3) + 4)) // 4
+            assert 0 <= d < 256
+            w = 0xD000 | it[1] << 8 | d
+        else:
+            d = (pos[it[1]] - (pc + 4)) // 2
+            assert -128 <= d < 128
+            w = (0x8B00 if it[0] == 'BF' else 0x8900) | d & 0xFF
+        out += struct.pack('>H', w)
+        pc += 2
+    out += bytes((base + len(out)) & 2)
+    for name, v in lits.items():
+        out += struct.pack('>I', v)
+    return bytes(out)
+
+
+def skit_hook(base):
+    """the skit script loader, then: if the script carries saturn_cutscenes.SUBTITLE_MARK, point its
+    subtitle jump at the bottom / speaker / no spawns by STORY DEMO (1 / 2 / 3); returns the loader's r0"""
+    mark = saturn_cutscenes.SUBTITLE_MARK
+    return _sh2(base, [
+        0x4F22, ('L', 1, 'load'), 0x410B, 0x0009, 0x2F06,     # sts.l pr; jsr loader; mov.l r0,@-r15
+        ('L', 1, 'script'), 0x8415, 0x8802, ('BF', 'done'),   # script[5] == 02 (jump to the trampoline)?
+        0x8416, 0x620C, 0x8417, 0x600C, 0x4018, 0x202B,       # r0 = its target (u16 LE)
+        0x310C, 0x7108,                                       # r1 = trampoline + 8: 02 t t, 3 targets, mark
+        0x8419, 0x8800 | mark[0], ('BF', 'done'), 0x841A, 0x8800 | mark[1], ('BF', 'done'),
+        ('L', 0, 'mode'), 0x6000, 0x600C, 0x70FF,             # r0 = STORY DEMO - 1
+        0xE202, 0x3026, ('BT', 'done'),                       # unsigned > 2: keep the default (bottom)
+        0x4000, 0x7003, 0x021C, 0x7001, 0x031C,               # r2, r3 = target bytes at 3 + 2 * r0
+        0x6023, 0x8011, 0x6033, 0x8012,                       # into the jump's operand
+        'done:', 0x60F6, 0x4F26, 0x000B, 0x0009,              # mov.l @r15+,r0; lds.l pr; rts
+    ], {'load': SKIT_LOAD, 'script': SKIT_SCRIPT, 'mode': STORY_VALUE})
+
+
+def _apply_story_demo(prog):
+    def put(ram, old, new):
+        at = ram - RAM_BASE
+        if prog[at:at + len(old)] != old:
+            raise ValueError(f'/0;1 at {ram:#x}: expected {old.hex()}, got {prog[at:at + len(old)].hex()}')
+        prog[at:at + len(new)] = new
+
+    at = RAM_BASE + STORY_AT
+    hook = skit_hook(at)
+    strings = at + len(hook)
+    records = strings + 12 * len(STORY_VALUES)
+    text = b''.join(v.ljust(10) + bytes(2) for v in STORY_VALUES)      # padded: a shorter value covers a longer one
+    recs = b''
+    for k in range(len(STORY_VALUES)):
+        tmpl = bytearray(prog[STORY_RECORDS[min(k, 1)] - RAM_BASE:][:16])
+        struct.pack_into('>I', tmpl, 4, strings + 12 * k)
+        recs += tmpl
+    assert len(assemble_text_put()) <= STORY_AT - TEXT_PUT and records + len(recs) <= RAM_BASE + TEXT_PUT_END
+    prog[STORY_AT:STORY_AT + len(hook + text + recs)] = hook + text + recs
+    put(STORY_MAX, b'\x01', bytes([len(STORY_VALUES) - 1]))
+    put(SKIT_LOAD_LIT, struct.pack('>I', SKIT_LOAD), struct.pack('>I', at))
+    # the value is drawn from record base + 16 * value instead of two cases (same literal slots)
+    put(STORY_SHOW + 0x60, struct.pack('>I', STORY_RECORDS[0]), struct.pack('>I', records))
+    # mov.l value,r0; mov.b @r0,r0; extu.b; shll2 x2; mov.l records,r4; add r0,r4; mov.l print,r3; jsr; nop
+    put(STORY_SHOW, bytes.fromhex('d0166000600ca00c0009d415d30e430b0009a00a0009d413d30b430b0009a0040009880089f1880189f5'),
+        bytes.fromhex('d0166000600c40084008d415340cd30e430b0009') + bytes.fromhex('0009') * 11)
+
+
 def _apply_logo(prog, chunk, mode):
     if mode == 'original':
         return
@@ -380,6 +473,7 @@ def build(src_bin, logo_mode=logo.DEFAULT_MODE):
     # 1. /0;1 in-place ASCII strings + Milestone B SH-2 8x16 tutorial text engine & font
     _apply_strings(prog)
     _apply_text(prog, banks['GFILE09.BIN'])
+    _apply_story_demo(prog)
 
     # 2. VDP1 sprite chunks with /0;1 sprite tables
     _apply_logo(prog, banks['DEMO_G04.BIN']['chunks'][7], logo_mode)
@@ -459,6 +553,7 @@ def build(src_bin, logo_mode=logo.DEFAULT_MODE):
     saturn_cutscenes.apply_captions(show)
     saturn_cutscenes.apply_aids(show)
     saturn_cutscenes.apply_schezo(show)
+    saturn_cutscenes.apply_subtitles(show)      # after apply_schezo: both grow the Schezo sprite set
 
     out = {'0': bytes(prog), 'H_PUYODT.BIN': saturn_arch.pack_hpuyodt(hp),
            'PUYOSHOW.FLD': game_arts.fld_pack(show, struct.unpack_from('>I', puyoshow, 0)[0]),

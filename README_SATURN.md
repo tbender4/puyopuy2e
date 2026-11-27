@@ -70,7 +70,7 @@ inside its original disc sectors, so the image keeps its size and layout.
 - Tsuu mode character select (`START!`) and Nomi on the BEST RECORDS screen
 - The sound test's two bonus video titles
 - The ending staff roll: roles and every name as [MobyGames](https://www.mobygames.com/game/13047/puyo-puyo-2/credits/sega-saturn/)
-  credits them (credited aliases kept as aliases)
+  credits them
 
 #### Cutscenes (Game Arts files, Milestone D)
 - The Act Against AIDS card (`COURAGE AND LOVE` and its three lines)
@@ -78,12 +78,20 @@ inside its original disc sectors, so the image keeps its size and layout.
 - Cockadoodle's two captions, and `THIRTY MINUTES / LATER` for `30分経過`
 - Schezo's ヘンタイ / タイヘン signs keep the Japanese (the swap is the joke) with `PERVERT` /
   `TERRIBLE` under them
+- English subtitles for the skits' voice lines (so far Schezo's in Tsuu mode), timed to the Saturn
+  voice track. `STORY DEMO` on OPTIONS page 2 has new options: 
+    - `SUBTITLES`: at the bottom (default),
+    - `SPEAKER`: next to whoever speaks
+    - `SIGNS ONLY`: only translated signs, no voice subtitles.
+    - `OFF`: no skits, as before
+
+Translations are from Domino054's [translated cutscene videos](https://youtu.be/aKZwf3sSVWM). Thank you for graciously permitting use of the translation!
 
 ## Not translated
 
 - Sound-effect lettering in the skits (ざく, どかーん, グサッ, ガ〜ン, うわーん) keeps the Japanese art
 
-The voice audio and the FMV videos are left as they are.
+The voice audio (subtitled, see above) and the FMV videos are left as they are.
 
 ## Screenshots
 
@@ -104,6 +112,9 @@ The voice audio and the FMV videos are left as they are.
 | Rule editor | ![](screenshots/saturn/editor_jp.png) | ![](screenshots/saturn/editor_en.png) |
 | Rule save | ![](screenshots/saturn/savebox_jp.png) | ![](screenshots/saturn/savebox_en.png) |
 | Options | ![](screenshots/saturn/options_jp.png) | ![](screenshots/saturn/options_en.png) |
+| Options page 2: `STORY DEMO` | ![](screenshots/saturn/options2_jp.png) | ![](screenshots/saturn/options2_en.png) |
+| Skit subtitles: `SUBTITLES` | ![](screenshots/saturn/skit_jp.png) | ![](screenshots/saturn/skit_subtitles_en.png) |
+| Skit subtitles: `SPEAKER` | ![](screenshots/saturn/skit_jp.png) | ![](screenshots/saturn/skit_speaker_en.png) |
 | Tutorial | ![](screenshots/saturn/tutorial_jp.png) | ![](screenshots/saturn/tutorial_en.png) |
 | Tutorial | ![](screenshots/saturn/tutorial2_jp.png) | ![](screenshots/saturn/tutorial2_en.png) |
 | Staff roll | ![](screenshots/saturn/credits_jp.png) | ![](screenshots/saturn/credits_en.png) |

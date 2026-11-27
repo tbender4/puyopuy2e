@@ -1,5 +1,5 @@
 """Saturn Milestone D: Game Arts cutscene art (EFFECT.DAT, PUYOSHOW.FLD) in English."""
-import functools, os
+import functools, os, struct
 import game_arts as ga
 import font, gfx, labels, md_credits, saturn_credits
 
@@ -314,3 +314,86 @@ def apply_schezo(ents, style=None):
         b = ga.sprites_resize(b, pixels, k, W, H, data)
     ents[SCHEZO] = ga.sprites_pack(b, pixels)
     assert len(ents[SCHEZO]) <= SLOT
+
+
+# Skit voice subtitles. A skit has no text box, so each line is a sprite added to the skit's set
+# and shown by an actor spliced into the script (saturn/skit_script_notes.md). Frames count from
+# the script start; the skit's AIF starts 27 frames later (BizHawk audio dump), so a line's frames
+# are 27 + 60 x its time in the AIF (faster-whisper timestamps of the Japanese voice). The STORY DEMO
+# option picks the placement at run time (saturn_build.skit_hook): SUBTITLES at the bottom, SPEAKER
+# at the speaker's (x, y), SIGNS ONLY none. A \n breaks a line where it reads better.
+# script entry: [(first frame, last frame, (x, y) next to the speaker, text)]
+SUBTITLES = {
+    106: [(339, 669, (95, 118), "Eek! You're that pervert mage!"),     # Arle (95, 183): above her head
+          (699, 837, (223, 216), "Wh-who's the pervert here!?"),       # Schezo (223, 180): under him, the signs are over his head
+          (840, 1041, (95, 118), "You are, you really are."),
+          (1095, 1323, (223, 216), "I'm truly a pure mage of the dark arts!"),
+          (1335, 1491, (223, 216), "Now it's come to this,\nI'll drag you down..."),
+          (1491, 1641, (223, 216), "...to the depths of the Puyo Underworld!")],
+}
+SUBTITLE_BOTTOM = (160, 218)                # bottom-centre of the SUBTITLES placement
+SUBTITLE_IDS = range(0x2F, 0x1F, -1)        # actor slots the skits leave free (106 uses 0x11-0x1A)
+SUBTITLE_MARK = b'SB'                       # tells saturn_build.skit_hook that a script has subtitles
+
+
+def _subtitle_img(text, white, black):
+    """text in Spleen 6x12, white with a black edge, its lines centred"""
+    cols = [_small_text(line, white) for line in text.split('\n')]
+    w = max(map(len, cols)) + 2
+    assert w <= 312, 'subtitle wider than the screen: %r' % text
+    w += -w % 8                                 # VDP1 sprite widths are multiples of 8
+    img = [[0] * w for _ in range(13 * len(cols) + 1)]
+    for n, c in enumerate(cols):
+        x0 = (w - len(c)) // 2
+        for x, col in enumerate(c):
+            for y, v in enumerate(col):
+                if v:
+                    img[13 * n + 1 + y][x0 + x] = v
+    return labels.ring(img, black, {white})
+
+
+def _splice(script, actors):
+    """script with the subtitle actors spawned before its first instruction (an 8-byte 03 spawn).
+    That becomes a jump to the end: the instruction, then `02 target`, its three targets (bottom
+    spawns, speaker spawns, none = straight back) and SUBTITLE_MARK, for the hook to pick from;
+    then the two spawn blocks, each jumping back to offset 13, then the actors' code.
+    actors: [(actor id, bottom (x, y), speaker (x, y), code)]"""
+    assert script[5] == 0x03, 'first instruction is not a spawn'
+    end = len(script)
+    bottom = end + 8 + 3 + 6 + len(SUBTITLE_MARK)
+    speaker = bottom + 8 * len(actors) + 3
+    code_at = speaker + 8 * len(actors) + 3
+    blocks, code = [bytearray(), bytearray()], bytearray()
+    for actor, *xys, body in actors:
+        for block, (x, y) in zip(blocks, xys):
+            block += struct.pack('<BBHhh', 0x03, actor, code_at + len(code), x, y)
+        code += body
+    tramp = script[5:13] + struct.pack('<BHHHH', 0x02, bottom, bottom, speaker, 13) + SUBTITLE_MARK
+    back = struct.pack('<BH', 0x02, 13)
+    out = script[:5] + struct.pack('<BH', 0x02, end) + b'\x0d' * 5 + script[13:] + tramp + blocks[0] + back + blocks[1] + back + code
+    assert len(out) <= 0x1000, 'script slot is 4096 bytes'
+    return out
+
+
+def apply_subtitles(ents):
+    for entry, lines in SUBTITLES.items():
+        b = ents[entry + 1]
+        table, pixels = ga.sprites_parse(b)
+        palette = ga.sprites_palette(b)
+        light = lambda v: sum(palette[v])
+        bank = max({t[0] for t in table}, key=lambda k: max(light(k + v) for v in range(1, 16)))   # the whitest white
+        white = max(range(1, 16), key=lambda v: light(bank + v))
+        black = min(range(1, 16), key=lambda v: light(bank + v))
+        actors = []
+        for actor, (first, last, speaker, text) in zip(SUBTITLE_IDS, lines):
+            img = _subtitle_img(text, white, black)
+            data = bytearray(len(img[0]) * len(img) // 2)
+            _sprite_put(data, 0, img)
+            b, frame = ga.sprites_add(b, pixels, bank, len(img[0]), len(img), data)
+            half = len(img[0]) // 2
+            on_screen = lambda x, y: (min(max(x, half + 4), 316 - half), y)
+            actors.append((actor, on_screen(*SUBTITLE_BOTTOM), on_screen(*speaker),
+                           struct.pack('<BBBHBBHB', 0x16, 0x0E, 0x10, first, 0x09, frame, last - first, 0x01)))
+        ents[entry + 1] = ga.sprites_pack(b, pixels)
+        assert len(ents[entry + 1]) <= SLOT, 'PUYOSHOW %d: %d bytes' % (entry + 1, len(ents[entry + 1]))
+        ents[entry] = _splice(ents[entry], actors)

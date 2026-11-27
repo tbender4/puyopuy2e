@@ -197,6 +197,17 @@ def sprites_palette(b):
     return [(v & 31, v >> 5 & 31, v >> 10 & 31) for v in struct.unpack_from('>%dH' % ncol, b, pal)]
 
 
+def sprites_add(b, pixels, bank, w, h, new_pixels):
+    """(b with a new last sprite of colour bank `bank`, its frame index); pixels as for sprites_resize"""
+    ncol, n, pal, table, data = struct.unpack_from('>HHIII', b, 0)
+    assert pal < table < data == table + 12 * n, 'header, palette, table, pixels expected in that order'
+    b = bytearray(b)
+    b[data:data] = struct.pack('>HIHHH', n, bank, w, h, 0)
+    struct.pack_into('>H', b, 2, n + 1)
+    struct.pack_into('>I', b, 12, data + 12)
+    return sprites_resize(bytes(b), pixels, n, w, h, new_pixels), n
+
+
 def sprites_resize(b, pixels, k, w, h, new_pixels):
     """give sprite k a new size, its 4bpp pixels appended at the end of the set's pixel data"""
     table = struct.unpack_from('>I', b, 8)[0]

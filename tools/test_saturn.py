@@ -497,7 +497,29 @@ def test_game_arts():
         assert game_arts.container_pack(head, blocks, order) == ents[entry]
         assert game_arts.scene_pack(game_arts.scene_parse(blocks[block])) == blocks[block]
     assert game_arts.scene_pack(game_arts.scene_parse(effect)) == effect
-    print('PASS Game Arts LZSS/map units + PUYOSHOW.FLD/EFFECT.DAT byte-exact repack')
+    # skit subtitles: the script's first spawn jumps to a trampoline: the spawn, `02 bottom`, the
+    # targets bottom / speaker / 13 for saturn_build.skit_hook, the mark; each block spawns one actor
+    # per line (16 0E, 10 first, 09 frame n, 01) and jumps back to 13; one new sprite per line
+    for entry, lines in saturn_cutscenes.SUBTITLES.items():
+        old_s, old_n = ents[entry], len(game_arts.sprites_parse(ents[entry + 1])[0])
+        sub = list(ents)
+        saturn_cutscenes.apply_subtitles(sub)
+        s, table = sub[entry], game_arts.sprites_parse(sub[entry + 1])[0]
+        end = len(old_s)
+        assert len(table) == old_n + len(lines) and s[:5] == old_s[:5] and s[13:end] == old_s[13:]
+        assert s[5:8] == struct.pack('<BH', 2, end) and s[end:end + 8] == old_s[5:13]
+        jump, bottom, speaker, none = struct.unpack_from('<xHHHH', s, end + 8)
+        assert jump == bottom and none == 13 and s[end + 17:end + 19] == saturn_cutscenes.SUBTITLE_MARK
+        bodies = set()
+        for block in (bottom, speaker):
+            for k, (first, last, _, _) in enumerate(lines):
+                op, actor, pc = struct.unpack_from('<BBH', s, block + 8 * k)
+                assert op == 3 and actor in saturn_cutscenes.SUBTITLE_IDS
+                assert s[pc:pc + 10] == struct.pack('<BBBHBBHB', 0x16, 0x0E, 0x10, first, 9, old_n + k, last - first, 1)
+                bodies.add(pc)
+            assert s[block + 8 * len(lines):block + 8 * len(lines) + 3] == struct.pack('<BH', 2, 13)
+        assert len(bodies) == len(lines)        # both placements share the actors' code
+    print('PASS Game Arts LZSS/map units + PUYOSHOW.FLD/EFFECT.DAT byte-exact repack + subtitle splice')
 
 
 def _check_redraw(old, new, parts, keep_rows=0):
