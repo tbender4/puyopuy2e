@@ -43,30 +43,29 @@ python3 make_puyopuy2e_md.py ["Puyo Puyo 2 (Japan) (v1.1).md" | FOLDER] [OUT_ROM
 ```
 
 The default input is this folder and the default output `Puyo Puyo 2 (English) (v1.1).md`
-next to the input. `--logo` picks the title logo as for the other versions
-(`no-red-puyos` default, `with-red-puyos`, `original`).
+next to the input.
+
+### Logo Customization
+- `--logo` picks the title logo as for the other versions (`no-red-puyos` default, `with-red-puyos`, `original`).
 
 ## What is translated
 
 ### Shared with the arcade and Saturn versions
 - title logo
-- the 58 character profile pages and the 12 attract tutorial pages
-- gameplay HUD (`CHAIN`, `OFFSET`, `K.O.`, `YAY!`)
-- the tower (`PICK YOUR RIVAL`, Nomi's `I'M HERE`, `YAY!`, `HOORAY!` and `OUCH!`), `CONTINUE?`
-- level select (`EXTRA MILD` ... `EXTRA HOT`)
-- Act Against AIDS (`COURAGE AND LOVE`)
+- the 58 character profiles and the 12 attract tutorial pages
+- gameplay HUD
+- the tower and the continue screen
+- level select
+- Act Against AIDS
 
 ### Mega Drive only
-- mode select (`CHOOSE A MODE!` and the three Carbuncle mouths: `1 PLAYER PUYO`,
-  `2 PLAYER PUYO`, `OPTIONS`)
-- `PAUSE` and the 2P join-in banner (`CHALLENGER!`)
-- 2P rule select (`CHOOSE A RULE!`) and its six rule descriptions
-- Rule Edit menu and the rule editor (all settings and the nuisance hardness labels)
-- `GAME OPTION` and the ending record romaji (`RULE SET`, `OFFSET`, `CHAIN LIMIT`,
-  `MAX CHAIN`)
-- ending staff roll: every Japanese name romanized as [MobyGames](https://www.mobygames.com/game/13047/puyo-puyo-2/credits/genesis/)
-  credits it (`MOO Niitani`, `Jemini Hirono`, `Tsuyoshi Matsushima`, ...); the credited
-  aliases are kept as aliases
+- Mode select
+- Pause and the 2P join-in banner
+- 2P rule select and its rule descriptions
+- Rule Editor
+- Game options and the ending record
+- The ending staff roll
+  - credits sourced from [MobyGames](https://www.mobygames.com/game/13047/puyo-puyo-2/credits/genesis/)
 
 ## Screenshots
 
@@ -78,9 +77,7 @@ next to the input. `--logo` picks the title logo as for the other versions
 | Character profile | ![](screenshots/md/profile_jp.png) | ![](screenshots/md/profile_en.png) |
 | Continue | ![](screenshots/md/continue_jp.png) | ![](screenshots/md/continue_en.png) |
 | 2P rule select | ![](screenshots/md/rules_jp.png) | ![](screenshots/md/rules_en.png) |
-| Rule Edit menu | ![](screenshots/md/ruleedit_jp.png) | ![](screenshots/md/ruleedit_en.png) |
 | Rule editor | ![](screenshots/md/editor_jp.png) | ![](screenshots/md/editor_en.png) |
 | Options | ![](screenshots/md/options_jp.png) | ![](screenshots/md/options_en.png) |
 | Tutorial | ![](screenshots/md/tutorial_jp.png) | ![](screenshots/md/tutorial_en.png) |
-| Tutorial | ![](screenshots/md/tutorial2_jp.png) | ![](screenshots/md/tutorial2_en.png) |
 | Staff roll | ![](screenshots/md/credits_jp.png) | ![](screenshots/md/credits_en.png) |

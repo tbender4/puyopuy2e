@@ -580,10 +580,13 @@ def test_game_arts():
         return [show[k]]
     for entry, lines in saturn_cutscenes.SUBTITLES.items():
         old_n = max(len(game_arts.sprites_parse(b)[0]) for b in sets(ents, entry + 1))    # endings: padded to the largest
-        assert {len(game_arts.sprites_parse(b)[0]) for b in sets(sub, entry + 1)} == {old_n + 1 + len(lines)}  # + the blank
+        n_sets = {len(game_arts.sprites_parse(b)[0]) for b in sets(sub, entry + 1)}
+        extra = next(iter(n_sets)) - old_n - 1 - len(lines)                       # SPEAKER-only texts that fit
+        assert 0 <= extra <= sum(len(l) > 4 for l in lines)
+        assert {len(game_arts.sprites_parse(b)[0]) for b in sets(sub, entry + 1)} == {old_n + 1 + len(lines) + extra}  # + the blank
         prefix = saturn_cutscenes.ENDING_PREFIX if entry + 1 in saturn_credits.ENDINGS else saturn_cutscenes.SUBTITLE_PREFIX
         at_bottom, by_speaker = check_splice(ents[entry], sub[entry], prefix)
-        want = sorted((first, last) for first, last, _, _ in lines)
+        want = sorted(l[:2] for l in lines)
         assert [l[:2] for l in at_bottom] == want == [l[:2] for l in by_speaker]
         assert sorted(l[4] for l in at_bottom) == list(range(old_n + 1, old_n + 1 + len(lines)))
     # the skits cover the first instructions other than an 8-byte spawn: 13 (22), 3F + 40 (28), 1B (114),

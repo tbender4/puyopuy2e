@@ -392,10 +392,10 @@ def apply_sign_words(ents):
     _apply_zombie(ents)
 
 
-# Mini Zombie (PUYOSHOW 47, sprite 36): the small 石 tag on the rock gets ROCK above it in the 6x12 font (8x16 is
-# larger than the tag); the tag is anchored top-left (script 46 spawns it at (166, 158)), so the canvas grows up by
-# ROCK_UP and the spawn moves up as much
-ROCK_UP = 12
+# Mini Zombie (PUYOSHOW 47, sprite 36): the 石 tag on the rock is redrawn as a wider tag reading ROCK (black, 6x12
+# font), its box grown ROCK_GROW px to the left, the pointer to the rock kept; the tag is anchored top-left (script 46
+# spawns it at (166, 158)), so the spawn moves left as much and the pointer stays put
+ROCK_GROW = 16
 ROCK_SPAWN = bytes.fromhex('0315c801a6009e00')
 
 
@@ -404,28 +404,28 @@ def _apply_rock(ents):
     table, pixels = ga.sprites_parse(b)
     _, w, h, addr = table[36]
     old = _sprite_get(pixels, addr, w, h)
-    top = min(y for y in range(h) if any(old[y]))
-    img = [[0] * w for _ in range(h + ROCK_UP)]
-    for y in range(h):
-        img[ROCK_UP + y] = old[y][:]
-    cols = _small_text('ROCK', 15)
-    x0 = (w - len(cols)) // 2
-    layer = [[0] * w for _ in img]
+    W = w + ROCK_GROW
+    img = [[0] * ROCK_GROW + row for row in old]
+    left, right, top, bottom = ROCK_GROW - 13, ROCK_GROW + 15, 2, 15        # the old box: x 0-15, y 3-15; 1 row taller
+    for y in range(top, bottom + 1):
+        for x in range(left, right + 1):
+            edge = min(x - left, right - x, y - top, bottom - y)
+            img[y][x] = 1 if edge == 0 else 3 if edge == 1 else 15             # black outline, grey border, white
+    for y in (14, 15):                                                       # where the pointer leaves the box
+        img[y][ROCK_GROW + 8:ROCK_GROW + 16] = old[y][8:16]
+    cols = _small_text('ROCK', 1)
+    x0 = (left + right + 1) // 2 - len(cols) // 2
     for x, col in enumerate(cols):
         for y, v in enumerate(col):
             if v:
-                layer[ROCK_UP + top - 13 + y][x0 + x] = v
-    for y, row in enumerate(labels.ring(layer, 1, {15})):
-        for x, v in enumerate(row):
-            if v:
-                img[y][x] = v
-    data = bytearray(w * len(img) // 2)
+                img[top + 3 + y - 1][x0 + x] = 1                             # 1 px from the border, above and below
+    data = bytearray(W * h // 2)
     _sprite_put(data, 0, img)
-    b = ga.sprites_resize(b, pixels, 36, w, len(img), data)
+    b = ga.sprites_resize(b, pixels, 36, W, h, data)
     ents[47] = ga.sprites_pack(b, pixels)
     assert len(ents[47]) <= SLOT
     assert ents[46].count(ROCK_SPAWN) == 1
-    ents[46] = ents[46].replace(ROCK_SPAWN, ROCK_SPAWN[:6] + bytes([0x9e - ROCK_UP, 0]))
+    ents[46] = ents[46].replace(ROCK_SPAWN, ROCK_SPAWN[:4] + bytes([0xa6 - ROCK_GROW, 0]) + ROCK_SPAWN[6:])
 
 
 # Masked Satan (PUYOSHOW 43) spells マスクド one kana at a time, a 2 x 2 block: sprite -> (its word, its place in the
@@ -495,7 +495,8 @@ def _apply_zombie(ents):
 # blank sprite between them, so a skit needs only one or two actor slots. The STORY DEMO option
 # picks the placement at run time (saturn_build.skit_hook): SUBTITLES at the bottom, SPEAKER at the
 # speaker's (x, y), SIGNS ONLY none.
-SUBTITLE_BOTTOM = (160, 218)                # bottom-centre of the SUBTITLES placement (lane 0; lane 1 above)
+SUBTITLE_BOTTOM = (160, 221)                # bottom-centre of the SUBTITLES placement (lane 0; lane 1 above)
+SUBTITLE_STACK = 15     # lane 1 sits on a one-line lane 0 caption (14 px); make_subs.py overlaps only one-line captions
 SUBTITLE_IDS = (0x2F, 0x2E)                 # actor slots for the two lanes, free in every skit
 SUBTITLE_MARK = b'SB'                       # tells saturn_build.skit_hook that a script has subtitles
 SUBTITLE_GAP = 2        # px between letters: the black edges then leave a seam, so letters don't fuse
@@ -599,7 +600,11 @@ def _add_captions(b, texts, pad_to=0, own_bank=False, small=False):
 def apply_subtitles(ents):
     for entry, lines in SUBTITLES.items():
         lines = sorted(lines)
-        texts = [text for _, _, _, text in lines]
+        texts = [line[3] for line in lines]
+        # a line may have a 5th field: its SPEAKER text (broken to stay clear of the other character); those get
+        # sprites of their own after the bottom ones
+        extra = [line[4] for line in lines if len(line) > 4]
+        texts += extra
         if entry + 1 in saturn_credits.ENDINGS:
             # an ending draws from the sprite set of its current scene; every set of its container gets
             # the captions at the same frames (the smaller ones padded), so any scene can show them
@@ -611,25 +616,37 @@ def apply_subtitles(ents):
             ents[entry + 1] = ga.container_pack(head, blocks, order)
             assert lines[0][0] >= FIRST_SET.get(entry, 0), 'PUYOSHOW %d: a caption before any sprite colours' % entry
         else:
-            set_, blank, frames = _add_captions(ents[entry + 1], texts)
-            if len(set_) > SLOT:                    # the slower, tighter compression (entry 51)
-                set_, blank, frames = _add_captions(ents[entry + 1], texts, small=True)
+            def fit(texts):
+                out = _add_captions(ents[entry + 1], texts)
+                if len(out[0]) > SLOT:              # the slower parse, when it is smaller (entry 51)
+                    out = min(out, _add_captions(ents[entry + 1], texts, small=True), key=lambda o: len(o[0]))
+                return out
+            set_, blank, frames = fit(texts)
+            while len(set_) > SLOT and extra:       # still too big: the last SPEAKER-only texts fall back to the shared one
+                k = max(i for i, line in enumerate(lines) if len(line) > 4)
+                lines[k] = lines[k][:4]
+                extra = [line[4] for line in lines if len(line) > 4]
+                set_, blank, frames = fit([line[3] for line in lines] + extra)
             ents[entry + 1] = set_
             assert len(ents[entry + 1]) <= SLOT, 'PUYOSHOW %d: %d bytes' % (entry + 1, len(ents[entry + 1]))
-        lanes = []                                  # [[(first, last, frame, half width, speaker (x, y))]]
-        for (first, last, speaker, _), (frame, half) in zip(lines, frames):
+        own = iter(frames[len(lines):])
+        lanes = []      # [[(first, last, speaker (x, y), {place: (frame, half width)})]]
+        for line, bottom in zip(lines, frames):
+            first, last, speaker = line[:3]
+            look = {'bottom': bottom, 'speaker': next(own) if len(line) > 4 else bottom}
             lane = next((l for l in lanes if l[-1][1] <= first), None)    # touching lines share a lane
             if lane is None:
                 lanes.append(lane := [])
-            lane.append((first, last, frame, half, speaker))
+            lane.append((first, last, speaker, look))
         assert len(lanes) <= 2, 'PUYOSHOW %d: more than two lines at once' % entry
         actors = []
         for actor, (k, lane) in zip(SUBTITLE_IDS, enumerate(lanes)):
             bodies = []
             for place in ('bottom', 'speaker'):
                 code, at = bytearray(ENDING_PREFIX if entry + 1 in saturn_credits.ENDINGS else SUBTITLE_PREFIX), 0
-                for first, last, frame, half, speaker in lane:
-                    x, y = speaker if place == 'speaker' else (SUBTITLE_BOTTOM[0], SUBTITLE_BOTTOM[1] - 28 * k)
+                for first, last, speaker, look in lane:
+                    frame, half = look[place]
+                    x, y = speaker if place == 'speaker' else (SUBTITLE_BOTTOM[0], SUBTITLE_BOTTOM[1] - SUBTITLE_STACK * k)
                     x = min(max(x, half + 4), 316 - half)   # on screen
                     # 10 n waits n frames, 09 f n waits n + 1 (measured)
                     if at == 0:
