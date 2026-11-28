@@ -27,6 +27,12 @@ def _sprite_put(pixels, addr, img):
             pixels[addr * 8 + (y * w + x) // 2] = row[x] << 4 | row[x + 1]
 
 
+def _sprite_bytes(img):
+    data = bytearray(len(img[0]) * len(img) // 2)
+    _sprite_put(data, 0, img)
+    return data
+
+
 @functools.lru_cache(None)
 def _font6():
     return font.load_bdf(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'font', 'spleen-6x12.bdf'))
@@ -200,9 +206,7 @@ def apply_captions(ents):
             if W == w:
                 _sprite_put(pixels, addr, img)
             else:
-                data = bytearray(W * h // 2)
-                _sprite_put(data, 0, img)
-                b = ga.sprites_resize(b, pixels, k, W, h, data)
+                b = ga.sprites_resize(b, pixels, k, W, h, _sprite_bytes(img))
         ents[entry] = ga.sprites_pack(b, pixels)
         assert len(ents[entry]) <= SLOT, 'PUYOSHOW %d: %d bytes' % (entry, len(ents[entry]))
     for entry, old, new in (CAPTION_HOLD, CAPTION_X):
@@ -269,10 +273,10 @@ SCHEZO_STYLE = 'b'      # a: kana + TL note, b: small English above the kana, c:
 NOTE_DX, NOTE_BOTTOM = 64, 112          # note right edge / bottom from the sign's centre: on the floor between Arle and Schezo
 
 
-def _spleen(img, text, x0, y0, fill, edge):
-    """draw text in Spleen 8x16 (capital rows 2-11) at (x0, y0), with an edge ring"""
+def _draw_cols(img, cols, x0, y0, fill, edge):
+    """draw text columns into img at (x0, y0) in fill, with an edge ring"""
     layer = [[0] * len(img[0]) for _ in img]
-    for x, col in enumerate(md_credits.text_columns(text)):
+    for x, col in enumerate(cols):
         for y, v in enumerate(col):
             if v:
                 layer[y0 + y][x0 + x] = fill
@@ -281,6 +285,11 @@ def _spleen(img, text, x0, y0, fill, edge):
         for x, v in enumerate(row):
             if v:
                 img[y][x] = v
+
+
+def _spleen(img, text, x0, y0, fill, edge):
+    """draw text in Spleen 8x16 (capital rows 2-11) at (x0, y0), with an edge ring"""
+    _draw_cols(img, md_credits.text_columns(text), x0, y0, fill, edge)
 
 
 def apply_schezo(ents, style=None):
@@ -310,9 +319,7 @@ def apply_schezo(ents, style=None):
             for n, line in enumerate(SCHEZO_NOTE):
                 cols = len(md_credits.text_columns(line))
                 _spleen(img, line, W // 2 + NOTE_DX - cols - 1, H // 2 + NOTE_BOTTOM - 13 * (3 - n) - 2, 15, 1)
-        data = bytearray(W * H // 2)
-        _sprite_put(data, 0, img)
-        b = ga.sprites_resize(b, pixels, k, W, H, data)
+        b = ga.sprites_resize(b, pixels, k, W, H, _sprite_bytes(img))
     ents[SCHEZO] = ga.sprites_pack(b, pixels)
     assert len(ents[SCHEZO]) <= SLOT
 
@@ -332,16 +339,11 @@ SIGN_WORDS = {
 SIGN_GAP = 2            # px between the kana and the word's edge
 
 
-def _word_layer(W, H, word, x0, y0, fill, small):
-    """word drawn at (x0, y0) (its ink's top-left) with a black edge, as a layer"""
-    cols = _small_text(word, fill) if small else [[fill if v else 0 for v in c] for c in md_credits.text_columns(word)]
+def _word(img, word, x0, y0, fill, small):
+    """draw word into img at (x0, y0) (its ink's top-left) with a black edge"""
+    cols = _small_text(word) if small else md_credits.text_columns(word)
     top = min(y for c in cols for y, v in enumerate(c) if v)
-    layer = [[0] * W for _ in range(H)]
-    for x, col in enumerate(cols):
-        for y, v in enumerate(col):
-            if v:
-                layer[y0 + y - top][x0 + x] = fill
-    return labels.ring(layer, 1, {fill})
+    _draw_cols(img, cols, x0, y0 - top, fill, 1)
 
 
 def _word_size(word, small):
@@ -378,13 +380,8 @@ def apply_sign_words(ents):
             img = [[0] * W for _ in range(H)]
             for y in range(h):
                 img[oy + y][ox:ox + w] = old[y]
-            for y, row in enumerate(_word_layer(W, H, word, x0, y0, fill, small)):
-                for x, v in enumerate(row):
-                    if v:
-                        img[y][x] = v
-            data = bytearray(W * H // 2)
-            _sprite_put(data, 0, img)
-            b = ga.sprites_resize(b, pixels, k, W, H, data)
+            _word(img, word, x0, y0, fill, small)
+            b = ga.sprites_resize(b, pixels, k, W, H, _sprite_bytes(img))
         ents[entry] = ga.sprites_pack(b, pixels)
         assert len(ents[entry]) <= SLOT, 'PUYOSHOW %d: %d bytes' % (entry, len(ents[entry]))
     _apply_masked(ents)
@@ -419,9 +416,7 @@ def _apply_rock(ents):
         for y, v in enumerate(col):
             if v:
                 img[top + 3 + y - 1][x0 + x] = 1                             # 1 px from the border, above and below
-    data = bytearray(W * h // 2)
-    _sprite_put(data, 0, img)
-    b = ga.sprites_resize(b, pixels, 36, W, h, data)
+    b = ga.sprites_resize(b, pixels, 36, W, h, _sprite_bytes(img))
     ents[47] = ga.sprites_pack(b, pixels)
     assert len(ents[47]) <= SLOT
     assert ents[46].count(ROCK_SPAWN) == 1
@@ -449,9 +444,7 @@ def _apply_masked(ents):
         for y in range(32):
             img[by + y][bx:bx + 32] = kana[k][y]
         _spleen(img, word, x0, low, 11, 1)
-        data = bytearray(W * H // 2)
-        _sprite_put(data, 0, img)
-        b = ga.sprites_resize(b, pixels, k, W, H, data)
+        b = ga.sprites_resize(b, pixels, k, W, H, _sprite_bytes(img))
     ents[43] = ga.sprites_pack(b, pixels)
     assert len(ents[43]) <= SLOT, 'PUYOSHOW 43: %d bytes' % len(ents[43])
     for move in MASKED_MOVES:
@@ -480,10 +473,7 @@ def _apply_zombie(ents):
     for n, line in enumerate(lines):
         cols, _ = _word_size(line, True)
         x0 = min((x_lo + x_hi + 1) // 2 - cols // 2, w - cols - 1)
-        for y, row in enumerate(_word_layer(w, h, line, x0, y0 + 14 * n, 15, True)):
-            for x, v in enumerate(row):
-                if v:
-                    img[y][x] = v
+        _word(img, line, x0, y0 + 14 * n, 15, True)
     _sprite_put(pixels, addr, img)
     ents[143] = ga.sprites_pack(b, pixels)
     assert len(ents[143]) <= SLOT
@@ -590,9 +580,7 @@ def _add_captions(b, texts, pad_to=0, own_bank=False, small=False):
     frames = []
     for text in texts:
         img = _subtitle_img(text, white, black)
-        data = bytearray(len(img[0]) * len(img) // 2)
-        _sprite_put(data, 0, img)
-        b, frame = ga.sprites_add(b, pixels, bank, len(img[0]), len(img), data)
+        b, frame = ga.sprites_add(b, pixels, bank, len(img[0]), len(img), _sprite_bytes(img))
         frames.append((frame, len(img[0]) // 2))
     return ga.sprites_pack(b, pixels, small), blank, frames
 

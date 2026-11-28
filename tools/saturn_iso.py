@@ -214,7 +214,7 @@ def patch_iso(src_bin, out_bin, replacements, out_cue=None, fresh=True):
     size and the entries pointing past the track (SEGACDDA, into the audio track) move along.
 
     Defaults to fresh=True (copies src_bin -> out_bin for deterministic builds). Pass
-    fresh=False only to overlay onto an existing out_bin of the same size (<1s dev loop)."""
+    fresh=False only to overlay onto an existing out_bin of the patched size (<1s dev loop)."""
     src_bin = os.path.abspath(src_bin)
     out_bin = os.path.abspath(out_bin)
     if _same_path(src_bin, out_bin):
