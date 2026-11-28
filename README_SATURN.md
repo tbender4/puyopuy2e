@@ -75,7 +75,7 @@ output Track 1 instead of copying 606 MB.
 - The Act Against AIDS card (`COURAGE AND LOVE` and its three lines)
 - Nomi's signs (`I AM HERE`, `I SAID I'M HERE!`, `SHOULD BE HERE`, `FOUND IT!`, `MAYBE I'M HERE`)
 - Cockadoodle's two captions, and `THIRTY MINUTES / LATER` for `30分経過`
-- Schezo's ヘンタイ / タイヘン signs keep the Japanese (the swap is the joke) with `PERVERT` /
+- Shezo's ヘンタイ / タイヘン signs keep the Japanese (the swap is the joke) with `PERVERT` /
   `TERRIBLE` under them
 - English subtitles for the voice lines of all 74 skits (Normal and Tsuu mode). `STORY DEMO` on OPTIONS page 2 has new options: 
     - `SUBTITLES`: at the bottom (default),

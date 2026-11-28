@@ -32,9 +32,9 @@ def _font6():
     return font.load_bdf(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'font', 'spleen-6x12.bdf'))
 
 
-def _small_text(s, colour=1, tall=False):
+def _small_text(s, colour=1, tall=False, gap=1):
     """columns of s in Spleen 6x12 (12 rows; tall: row 5 doubled, 13 rows), glyphs trimmed to
-    their ink + 1 px, spaces 3 px"""
+    their ink + gap px, spaces 3 px"""
     cols = []
     for ch in s:
         if ch == ' ':
@@ -45,8 +45,8 @@ def _small_text(s, colour=1, tall=False):
         ink = [c for c in range(8) if any(r >> (7 - c) & 1 for r in rows)]
         for c in range(ink[0], ink[-1] + 1):
             cols.append([colour if rows[y] >> (7 - c) & 1 else 0 for y in range(len(rows))])
-        cols.append([0] * len(rows))
-    return cols[:-1]
+        cols += [[0] * len(rows)] * gap
+    return cols[:-gap]
 
 
 def _text_mask(text, gap=1):
@@ -326,6 +326,7 @@ def apply_schezo(ents, style=None):
 SUBTITLE_BOTTOM = (160, 218)                # bottom-centre of the SUBTITLES placement (lane 0; lane 1 above)
 SUBTITLE_IDS = (0x2F, 0x2E)                 # actor slots for the two lanes, free in every skit
 SUBTITLE_MARK = b'SB'                       # tells saturn_build.skit_hook that a script has subtitles
+SUBTITLE_GAP = 2        # px between letters: the black edges then leave a seam, so letters don't fuse
 # each lane's code starts: anchor bottom-centre (16 0E); sprite priority register 7 (1E 07, no script uses
 # it) set to priority 7 (1C 07 07): over the close-up layers (the endings leave every register at 4)
 SUBTITLE_PREFIX = b'\x16\x0e\x1e\x07\x1c\x07\x07'
@@ -342,7 +343,7 @@ FIRST_LENGTHS = {0x03: 8, 0x13: 3, 0x1B: 3, 0x3F: 2, 0x40: 6, 0x80: 2}    # the 
 
 def _subtitle_img(text, white, black):
     """text in Spleen 6x12, white with a black edge, its lines centred"""
-    cols = [_small_text(line, white) for line in text.split('\n')]
+    cols = [_small_text(line, white, gap=SUBTITLE_GAP) for line in text.split('\n')]
     w = max(map(len, cols)) + 2
     assert w <= 312, 'subtitle wider than the screen: %r' % text
     w += -w % 8                                 # VDP1 sprite widths are multiples of 8
@@ -390,7 +391,7 @@ def _is_sprite_set(b):
     return 0 < ncol and 0 < n and pal == 16 and table == pal + 2 * ncol and data == table + 12 * n
 
 
-def _add_captions(b, texts, pad_to=0, own_bank=False):
+def _add_captions(b, texts, pad_to=0, own_bank=False, small=False):
     """(b with blank sprites up to pad_to entries, then the blank and one sprite per text appended,
     the blank's frame, [(frame, half width)]); colours: the whitest and darkest of the set's whitest bank,
     or (own_bank) black and white in a 16-colour bank appended to the palette"""
@@ -419,7 +420,7 @@ def _add_captions(b, texts, pad_to=0, own_bank=False):
         _sprite_put(data, 0, img)
         b, frame = ga.sprites_add(b, pixels, bank, len(img[0]), len(img), data)
         frames.append((frame, len(img[0]) // 2))
-    return ga.sprites_pack(b, pixels), blank, frames
+    return ga.sprites_pack(b, pixels, small), blank, frames
 
 
 def apply_subtitles(ents):
@@ -437,7 +438,10 @@ def apply_subtitles(ents):
             ents[entry + 1] = ga.container_pack(head, blocks, order)
             assert lines[0][0] >= FIRST_SET.get(entry, 0), 'PUYOSHOW %d: a caption before any sprite colours' % entry
         else:
-            ents[entry + 1], blank, frames = _add_captions(ents[entry + 1], texts)
+            set_, blank, frames = _add_captions(ents[entry + 1], texts)
+            if len(set_) > SLOT:                    # the slower, tighter compression (entry 51)
+                set_, blank, frames = _add_captions(ents[entry + 1], texts, small=True)
+            ents[entry + 1] = set_
             assert len(ents[entry + 1]) <= SLOT, 'PUYOSHOW %d: %d bytes' % (entry + 1, len(ents[entry + 1]))
         lanes = []                                  # [[(first, last, frame, half width, speaker (x, y))]]
         for (first, last, speaker, _), (frame, half) in zip(lines, frames):

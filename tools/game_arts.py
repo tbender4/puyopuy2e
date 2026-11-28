@@ -87,6 +87,50 @@ def lzss_compress(data):
     return struct.pack('>I', len(out)) + bytes(out)
 
 
+def lzss_compress_small(data):
+    """lzss_compress, a few percent smaller and much slower: the longest match at every position, then the
+    cheapest mix of literals (9 bits) and matches (17 bits); for data that must fit a slot"""
+    n = len(data)
+    heads = {}                                  # 3-byte prefix -> positions
+    longest = [(0, 0)] * n                      # (length, position) of the longest match at each position
+    for pos in range(n - 2):
+        key = data[pos:pos + 3]
+        best, bpos = 0, 0
+        for cand in reversed(heads.get(key, ())[-512:]):    # the 512 latest: seconds, not minutes, per sprite set
+            if pos - cand > 4078:               # ring slots still holding cand's bytes
+                break
+            ln = 3
+            while ln < 18 and pos + ln < n and data[cand + ln] == data[pos + ln]:
+                ln += 1
+            if ln > best:
+                best, bpos = ln, cand
+                if ln == 18:
+                    break
+        longest[pos] = (best, bpos)
+        heads.setdefault(key, []).append(pos)
+    cost, step = [0] * (n + 1), [1] * n         # bits from each position to the end, and the step taken
+    for pos in range(n - 1, -1, -1):
+        cost[pos] = 9 + cost[pos + 1]
+        for ln in range(3, longest[pos][0] + 1):    # a shorter match at the same place is valid too
+            if 17 + cost[pos + ln] < cost[pos]:
+                cost[pos], step[pos] = 17 + cost[pos + ln], ln
+    out, flags, items, nbit, pos = bytearray(), 0, bytearray(), 0, 0
+    while pos < n:
+        if step[pos] > 1:
+            ring = (0xFEE + longest[pos][1]) & 0xFFF
+            items += bytes((ring & 0xFF, (ring >> 4) & 0xF0 | (step[pos] - 3)))
+        else:
+            flags |= 1 << nbit
+            items.append(data[pos])
+        pos += step[pos]
+        nbit += 1
+        if nbit == 8 or pos >= n:
+            out.append(flags)
+            out.extend(items)
+            flags, items, nbit = 0, bytearray(), 0
+    return struct.pack('>I', len(out)) + bytes(out)
+
+
 def map_decode(buf, off):
     """(w, h, cells, end)"""
     w, h = struct.unpack_from('>2H', buf, off)
@@ -183,11 +227,11 @@ def sprites_parse(b):
     return ents, bytearray(lzss_decompress(b, data)[0])
 
 
-def sprites_pack(b, pixels):
-    """b with its LZSS sprite pixels replaced"""
+def sprites_pack(b, pixels, small=False):
+    """b with its LZSS sprite pixels replaced (small: lzss_compress_small)"""
     data = struct.unpack_from('>I', b, 12)[0]
     end = lzss_decompress(b, data)[1]
-    return bytes(b[:data]) + lzss_compress(bytes(pixels)) + bytes(b[end:])
+    return bytes(b[:data]) + (lzss_compress_small if small else lzss_compress)(bytes(pixels)) + bytes(b[end:])
 
 
 def sprites_palette(b):

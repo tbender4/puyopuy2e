@@ -24,6 +24,7 @@ SUBTITLES = {
         (2243, 2401, (223, 115), 'Enough back-talk! Here I come!'),  # opponent: ええい!つべこべぬかすな!行くぞ!
     ],
     4: [  # BARO_N.AIF
+        (346, 421, (200, 118), 'Meh!'),  # opponent: めー
         (397, 594, (72, 118), 'Oh, how cute!'),  # Arle: あ、かわいい!
         (607, 791, (200, 118), 'Meh, meh, meh-meh!'),  # opponent: めー、めー、めめー!
         (779, 883, (72, 118), 'Hm? What is it?'),  # Arle: ん?なに?
@@ -49,7 +50,7 @@ SUBTITLES = {
     10: [  # COCKA_T.AIF
         (350, 470, (95, 117), 'Wh-what is this?!'),  # Arle: な、なにこれ
         (589, 823, (95, 117), 'Whoa! Attacking out of nowhere? No fair!'),  # Arle: うわぁ、いきなりなんて卑怯だよ
-        (1106, 1181, (95, 117), 'STOP!'),  # Arle: ストップ!
+        (1087, 1179, (95, 117), 'STOP!'),  # Arle: ストップ!
         (1205, 1408, (95, 117), 'This calls for a Puyo Puyo battle, right? Right?'),  # Arle: やっぱりここは、ぷよぷよで勝負だよね、ね
         (1410, 1515, (95, 117), 'Puyo puyo puyo puyo...'),  # Arle: ぷよぷよぷよぷよ…
         (1517, 1599, (95, 117), 'Waaah!'),  # Arle: うえぇー
@@ -57,8 +58,8 @@ SUBTITLES = {
     ],
     12: [  # DRACO_N.AIF
         (241, 645, (95, 117), 'Hey, you! If I win our battle,\nyou have to let me through.'),  # Arle: そこの君、勝負して僕が勝ったらここを通してもらうからね
-        (644, 837, (229, 114), 'A battle? You mean a beauty contest?'),  # opponent: 勝負って、まさか美少女コンテスト?
-        (870, 1131, (95, 117), 'Hmph, you think you can beat a cutie like me?'),  # Arle: ふん、この可憐な僕に勝てるとでも?
+        (644, 838, (229, 114), 'A battle? You mean a beauty contest?'),  # opponent: 勝負って、まさか美少女コンテスト?
+        (838, 1131, (95, 117), 'Hmph, you think you can beat a cutie like me?'),  # Arle: ふふん、この可憐な僕に勝てるとでも?
         (1142, 1385, (95, 117), 'W-wait, no! The battle is in the Puyo Underworld!'),  # Arle: て、ちっがーう!勝負はぷよぷよ地獄だ!
     ],
     14: [  # DRACO_T.AIF
@@ -86,7 +87,6 @@ SUBTITLES = {
         (1102, 1177, (223, 114), 'Rawr-rawr!'),  # opponent: ガウガウ!
         (1173, 1414, (95, 85), 'What? You want to fight? Fine!'),  # Arle: なに?やるって言うの?いいよ!
         (1437, 1516, (223, 114), 'Rawr!'),  # opponent: ガウ!
-        (1869, 1944, (223, 114), 'Rawr!'),  # opponent: ガウ!
     ],
     20: [  # FUFUF_N.AIF
         (310, 547, (223, 115), 'Fufu... so you came.'),  # opponent: うふふ、来たのね。
@@ -124,12 +124,12 @@ SUBTITLES = {
         (619, 729, (223, 97), 'What is it?'),  # opponent: 何です?
         (731, 1086, (223, 97), 'I was singing so happily~'),  # opponent: 気持ちよく歌ってたのに
         (1068, 1302, (95, 117), 'It may feel good to you, but not to me!'),  # Arle: 君は良くても僕は良くないの
-        (1317, 1424, (223, 97), 'Wh-what?'),  # opponent: そ、そんな
+        (1317, 1424, (223, 97), 'B-but...'),  # opponent: そ、そんな
         (1426, 1809, (223, 97), "Then let's settle this\nin the Puyo Underworld~!"),  # opponent: では、ぷよぷよ地獄で勝負するです
     ],
     28: [  # INKYU_N.AIF
         (265, 376, (223, 115), 'Hi, honey.'),  # opponent: ハイ、ハニー
-        (358, 449, (95, 117), 'Are you the third one?'),  # Arle: あなたが3番手?
+        (358, 449, (95, 117), 'Are you my third opponent?'),  # Arle: あなたが3番手?
         (471, 645, (223, 115), "That's right. The one who charms every woman,"),  # opponent: そう、どんな女性でもトリコにする
         (647, 817, (223, 115), 'Incubus, is me.'),  # opponent: インキュバスとは私のこと
         (819, 1062, (223, 115), 'Now you too will fall under my charm, miss.'),  # opponent: お嬢さんもこれで私のトリコになるのだ
@@ -137,7 +137,7 @@ SUBTITLES = {
         (1228, 1303, (95, 117), 'And?'),  # Arle: それで?
         (1283, 1514, (223, 115), "What? My good looks don't work on you?!"),  # opponent: なに、私の美形アタックが効かないというのか
         (1496, 1662, (95, 117), 'Well, looks like that...'),  # Arle: だって、その程度なら
-        (1684, 1874, (95, 117), "I'm used to them from Satan and Schezo."),  # Arle: サタンやシェゾで見慣れてるもん
+        (1684, 1874, (95, 117), "I'm used to them from Satan and Shezo."),  # Arle: サタンやシェゾで見慣れてるもん
         (1856, 2105, (223, 115), 'Tch... then be charmed by Puyo Puyo instead!'),  # opponent: くっ、それではぷよぷよのトリコになるがいい
     ],
     30: [  # INKYU_T.AIF
@@ -163,8 +163,8 @@ SUBTITLES = {
     34: [  # KETSY_T.AIF
         (271, 519, (191, 115), 'I hate the cold, meow. Hate it, meow.'),  # opponent: 寒いのは嫌いだニャン、嫌いだニャン
         (501, 735, (95, 117), "Yeah, I don't like the cold either."),  # Arle: うんうん、僕も寒いのは嫌だ
-        (717, 1057, (191, 115), 'But we love sleeping, meow! Love it, meow!'),  # opponent: でも眠るのは大好きだニャン、大好きだニャン
-        (1089, 1332, (95, 117), 'Right! Sleeping is pure bliss.'),  # Arle: そうそう、眠ってるときは幸せだよね
+        (717, 1057, (191, 115), 'But I love sleeping, meow! Love it, meow!'),  # opponent: でも眠るのは大好きだニャン、大好きだニャン
+        (1021, 1332, (95, 117), 'Right! Sleeping is pure bliss.'),  # Arle: そうそう、眠ってるときは幸せだよね
         (1314, 1558, (191, 115), 'We get along, meow! Get along, meow!'),  # opponent: あなたとは気が合うニャン、合うニャン
         (1560, 1763, (191, 115), "Let's play Puyo Puyo together, meow!"),  # opponent: 一緒にぷよぷよするニャン、するニャン
         (1765, 1962, (191, 115), 'Puyo Puyo with you, meow!'),  # opponent: あなたと一緒にぷよぷよするニャン
@@ -183,9 +183,10 @@ SUBTITLES = {
         (901, 1127, (95, 117), 'Even the sharp claws and fur are there.'),  # Arle: 鋭い爪や毛まで再現してあるよ。
         (1129, 1403, (95, 117), 'A skilled craftsman made this for sure.'),  # Arle: これは腕のいい職人さんの手によるものだね。
         (1465, 1606, (95, 117), 'Whoa, its eyes moved!'),  # Arle: うわあ、目が動いた。
-        (1608, 1796, (95, 117), 'It even has gimmicks like that!'),  # Arle: あんなギミックまであるとは。
-        (1808, 1942, (95, 117), 'Wow, wow, it even roars!'),  # Arle: すごいすごい、鳴くなんて。
-        (2031, 2160, (95, 117), "Waah, it's real!"),  # Arle: うわあ、本物だった。
+        (1608, 1726, (95, 117), 'It even has gimmicks like that!'),  # Arle: あんなギミックまであるとは。
+        (1728, 1806, (95, 117), 'Wow, wow!'),  # Arle: すごいすごい
+        (1808, 1942, (95, 117), 'It even roars!'),  # Arle: おまけに鳴くなんて。
+        (1976, 2160, (95, 117), "Ah! It's real!"),  # Arle: あ!本物だった!
     ],
     40: [  # MASKD_N.AIF
         (257, 607, (223, 117), 'Hmph. Wandering into a place like this?\nYou must be quite the fool.'),  # opponent: …ふん。こんなところへ迷い込むとは、なかなかとぼけた奴だな。
@@ -222,10 +223,11 @@ SUBTITLES = {
         (249, 374, (188, 104), 'Mooo!'),  # opponent: ンモー
         (356, 567, (72, 102), "Y-you're really fired up..."),  # Arle: ず、ずいぶんと力が入ってるなぁ
         (590, 747, (188, 104), 'M-m-mooo!'),  # opponent: ン、ン、ンモー
-        (729, 804, (72, 102), 'Waah!'),  # Arle: うわぁ
+        (729, 782, (72, 102), 'Waah!'),  # Arle: うわぁ
+        (784, 883, (72, 102), "Th-that can't be good!"),  # Arle: ま、まずい!
     ],
     50: [  # MINO_T.AIF
-        (293, 560, (223, 114), 'Hmm. An axe and a nose ring are best new.'),  # opponent: ふむ。やはりオノと鼻輪は新しいものに限るな。
+        (293, 560, (223, 114), 'Hmm. Nothing beats a brand-new axe and nose ring.'),  # opponent: ふむ。やはりオノと鼻輪は新しいものに限るな。
         (584, 883, (95, 117), "A n-nose ring?! You're into wearing those?!"),  # Arle: は、鼻輪!?君、そんなの付ける趣味あったの!?
         (925, 1097, (223, 114), 'Wha?! When did you get behind me?!'),  # opponent: はっ!いつの間にわしの背後に、
         (1099, 1324, (223, 114), 'The secret I kept even from Lady Rulue...'),  # opponent: ルルー様にも内緒にしていた秘密を、
@@ -239,7 +241,7 @@ SUBTITLES = {
         (992, 1100, (95, 117), "Who's in whose way?"),  # Arle: 邪魔はどっちだよ。
         (1118, 1267, (95, 117), 'Opening a shop in a place like this...'),  # Arle: こんなとこにお店を出すなんて。
         (1307, 1388, (223, 121), 'Mm, then...'),  # opponent: んー、じゃあ、
-        (1422, 1616, (223, 121), 'By Momomo law, we settle it with Puyo Puyo.'),  # opponent: モモモ族のおきて、ぷよぷよで勝負。
+        (1422, 1616, (223, 121), 'By Momomo Clan law, we settle it with Puyo Puyo.'),  # opponent: モモモ族のおきて、ぷよぷよで勝負。
         (1656, 1759, (223, 121), 'If you win,'),  # opponent: あなたが勝てば、
         (1770, 1862, (223, 121), "I'll close up shop~."),  # opponent: 店、たたむよー。
     ],
@@ -265,13 +267,13 @@ SUBTITLES = {
         (1124, 1280, (219, 109), 'There, all better!'),  # opponent: これで、OKだわさ
     ],
     58: [  # MUMMY_T.AIF
-        (69, 398, (223, 114), 'Haaaah!'),  # opponent: ハァー!
+        (290, 398, (223, 114), 'Haaaah!'),  # opponent: ハァー!
         (398, 650, (95, 117), "Wow! Such power,\nand you're not even fighting!"),  # Arle: 凄い!戦ってないのになんて気なの?
         (671, 823, (223, 114), 'This is only the beginning!'),  # opponent: こんなのまだまだ序の口だわさ!
         (877, 952, (223, 114), 'Hah!'),  # opponent: ハァ!
         (1031, 1237, (95, 117), 'Ah! Your energy fizzled out!'),  # Arle: あ!気がすっぽ抜けた!
         (1307, 1482, (223, 114), 'W-well, that happens all the time!'),  # opponent: まぁ…まぁよくあることだわさ!
-        (1530, 1710, (223, 114), "Let's pull ourselves together and battle!"),  # opponent: 気を取り直して勝負だわさ!
+        (1530, 1710, (223, 114), "I'll pull myself together. Now let's battle!"),  # opponent: 気を取り直して勝負だわさ!
         (1758, 1833, (223, 114), 'Haaah!'),  # opponent: ハァー!
     ],
     60: [  # NASU_N.AIF
@@ -282,7 +284,7 @@ SUBTITLES = {
         (1209, 1340, (223, 115), 'No questions asked, naaasu!'),  # opponent: 問答無用なーす!
     ],
     62: [  # NASU_T.AIF
-        (267, 416, (223, 115), 'Dummy, naaasu!'),  # opponent: おたんこなーっす
+        (267, 416, (223, 115), 'Lame-brain, naaasu!'),  # opponent: おたんこなーっす
         (398, 651, (95, 117), 'There you are! I was looking for you.'),  # Arle: 現れたね、君を探してたんだよ
         (633, 708, (223, 115), 'Nasu?'),  # opponent: なす?
         (699, 1002, (95, 117), 'I powered up my Fire spell just for today.'),  # Arle: この日のためにファイヤーの呪文の火力を上げておいたんだ。
@@ -314,7 +316,7 @@ SUBTITLES = {
         (1508, 1582, (251, 114), 'Nhoho.'),  # opponent: んほほ
         (1584, 1688, (251, 114), 'Oh, all right.'),  # opponent: 仕方ないの
         (1690, 1840, (251, 114), "I'll tell you just a little."),  # opponent: ちょっとだけ教えちゃう
-        (1822, 1905, (95, 117), 'What is it?'),  # Arle: なんなの?
+        (1822, 1940, (95, 117), 'What is it? What is it?'),  # Arle: なんなの?なんなの?
         (1966, 2058, (251, 114), 'Nhoho...'),  # opponent: んほほ
         (2078, 2207, (251, 114), '...the Puyo Underworld.'),  # opponent: ぷよぷよ地獄
         (2189, 2432, (95, 117), 'Wh-why laugh about the Puyo Underworld?!'),  # Arle: な、なぜぷよぷよ地獄で笑う
@@ -338,6 +340,7 @@ SUBTITLES = {
         (470, 661, (223, 117), 'Scary, right? Garooo!'),  # opponent: 怖いでしょ?ガルー。
         (670, 764, (95, 117), 'Not at all.'),  # Arle: ぜーんぜん。
         (859, 1125, (223, 117), "Ah, it's fine. Nobody's ever scared of me."),  # opponent: ああ、いいんです。どうせオイラなんか。
+        (1192, 1267, (223, 117), 'Sulk, sulk...'),  # opponent: いじいじ…
         (1239, 1408, (95, 117), "Never mind that. We're playing Puyo Puyo, right?"),  # Arle: そんなことより、ぷよぷよするんでしょ?
         (1435, 1761, (223, 117), 'Never mind that? How mean! Garooo!'),  # opponent: そんなこととはひどいじゃないですか。ガルー。
         (1743, 1924, (95, 117), "Acting tough doesn't scare me."),  # Arle: すごんでも怖くないよ。
@@ -349,7 +352,7 @@ SUBTITLES = {
         (657, 742, (223, 116), 'Awoo?'),  # opponent: わおー?
         (724, 891, (95, 117), 'Whoa!'),  # Arle: うわっ
         (873, 1240, (223, 116), "Now that you know who I really am,\nI can't let you live!"),  # opponent: オイラの正体を知ったからには、生かしては置けないですよ
-        (1273, 1542, (95, 117), "Um... your face is still a wolf's."),  # Arle: あのー、顔がオオカミのままなんですけど
+        (1273, 1584, (95, 117), "Um... your face is still a wolf's."),  # Arle: あのー、顔がオオカミのままなんですけど
     ],
     76: [  # PAKIS_N.AIF
         (268, 669, (227, 114), "Welcome~! My first customer in ages!\nI'm so happy!"),  # opponent: いらっしゃいーの、久々のお客さん、嬉しいの。
@@ -375,8 +378,8 @@ SUBTITLES = {
         (1822, 1906, (95, 117), 'Eek!'),  # Arle: ひゃっ
     ],
     80: [  # PANO_N.AIF
-        (320, 395, (95, 117), "What's that?"),  # Arle: 何これ?
-        (440, 570, (95, 117), 'How annoying!'),  # Arle: うっとうしいなー
+        (320, 363, (95, 117), "What's that?"),  # Arle: 何これ?
+        (365, 570, (95, 117), 'How annoying!'),  # Arle: うっとうしいなー
         (552, 731, (223, 114), "H-how rude! That's my flute!"),  # opponent: し、失礼な、僕の笛の音だぞ
         (713, 788, (95, 117), 'That?'),  # Arle: これが?
         (805, 989, (95, 117), 'Sounds like flies buzzing to me.'),  # Arle: ハエが飛んでるようにしか聞こえないけど
@@ -385,6 +388,7 @@ SUBTITLES = {
         (1245, 1380, (223, 114), '...gets this!'),  # opponent: こうだー!
     ],
     82: [  # PANO_T.AIF
+        (350, 515, (95, 117), "Wh-what's this melody...?"),  # Arle: こ、この旋律は…
         (522, 875, (223, 114), "Hear my magic flute,\nand you can't help doing a goofy dance!"),  # opponent: この魔法の笛の音を聴くと、マヌケな踊りをせずにはいられないだろう!
         (867, 1098, (95, 117), 'Nooo! Not this dance!'),  # Arle: いやだー!こんな踊りは!
         (1264, 1525, (223, 114), 'Ahahaha! H-how goofy!'),  # opponent: あはははは!な、なんてマヌケなんだ!
@@ -393,9 +397,13 @@ SUBTITLES = {
     ],
     84: [  # PARAR_N.AIF
         (296, 416, (95, 117), 'Are you the last one on this floor?'),  # Arle: 君がこの階の最後の人?
+        (433, 508, (223, 114), 'Right.'),  # opponent: うん
         (506, 704, (95, 117), "You don't look very strong..."),  # Arle: あんまり強そうには見えないなぁ
-        (781, 979, (95, 117), "But maybe you're actually super strong!"),  # Arle: でも本当はとんでもなく強いとか!
+        (687, 762, (223, 114), 'Right.'),  # opponent: うん
+        (781, 961, (95, 117), "But maybe you're actually super strong!"),  # Arle: でも本当はとんでもなく強いとか!
+        (944, 1019, (223, 114), 'Right.'),  # opponent: うん
         (1027, 1270, (95, 117), "Or that's a bluff, and you're weak after all?"),  # Arle: と思わせといて、実はやっぱり弱いとか
+        (1254, 1398, (223, 114), 'Right, right, right, right, right.'),  # opponent: うんうんうんうんうん
     ],
     86: [  # PARAR_T.AIF
         (267, 377, (199, 115), 'Parara~'),  # opponent: ぱらら
@@ -424,6 +432,7 @@ SUBTITLES = {
         (1237, 1462, (231, 114), 'why am I in the Puyo Underworld?!'),  # opponent: どうしてぷよぷよ地獄なの?
         (1744, 1889, (95, 114), "There's nothing anyone can do about that."),  # Arle: こればっかりはどうしようもないよ。
         (1925, 2000, (95, 114), "You'll just have to give up."),  # Arle: あきらめるしか。
+        (2015, 2090, (231, 114), 'No way!'),  # opponent: やーだー!
     ],
     92: [  # SAMUR_N.AIF
         (258, 487, (223, 115), 'I am Samurai Mole, a warrior.'),  # opponent: 拙者はサムライモール、武士でござる
@@ -463,7 +472,7 @@ SUBTITLES = {
         (1395, 1517, (95, 117), 'Huh? Really?'),  # Arle: え?いいの?
         (1586, 1840, (95, 117), "But it feels like something's missing..."),  # Arle: でも、なんだか物足りないなぁ
         (1869, 2135, (95, 117), 'I really have to battle!'),  # Arle: やっぱり、勝負しなくっちゃ
-        (2117, 2304, (223, 114), "Ehh, that's cruel!"),  # opponent: ええ、そんな殺生な
+        (2117, 2304, (223, 114), "Aw, you're killing me over here!"),  # opponent: ええ、そんな殺生な
     ],
     100: [  # SATAN_N.AIF
         (264, 398, (95, 117), 'Eek! Satan!'),  # Arle: ゲゲ?サタン!
@@ -485,11 +494,13 @@ SUBTITLES = {
         (1791, 2152, (223, 117), 'And I even had this costume made\nfor my best gag...'),  # opponent: 特注の衣装まで使った、とっておきのギャグだったのだが。
         (2173, 2312, (95, 117), 'Yeah, yeah, I get it.'),  # Arle: はいはい、分かったって。
         (2314, 2615, (95, 117), "Take that thing off\nand let's get this battle going."),  # Arle: そんなのは脱いじゃって、早いとこ勝負しようじゃない。
-        (2672, 3056, (223, 117), "Tch... The gag fell flat,\nbut my Puyo Underworld won't!"),  # opponent: くっ、ギャグは不発に終わったが、この最新鋭のぷよぷよ地獄はそうはいかんぞ。
+        (2672, 3056, (223, 117), "Tch... The gag fell flat,\nbut my state-of-the-art Puyo Underworld won't!"),  # opponent: くっ、ギャグは不発に終わったが、この最新鋭のぷよぷよ地獄はそうはいかんぞ。
         (3081, 3156, (223, 117), 'Take this!'),  # opponent: くらえ!
     ],
     104: [  # SHEZO_N.AIF
-        (567, 895, (231, 116), 'Coming all this way for me,\nthe great Schezo Wegey...'),  # opponent: このシェゾ・ウィグィ様のために、ここまでやってくるとは、
+        (359, 464, (231, 116), "Heh heh... I've been waiting for you."),  # opponent: フフ…待っていたぞ
+        (479, 584, (95, 117), 'Y-you again?!'),  # Arle: ま、また来た…
+        (567, 895, (231, 116), 'Coming all this way for me,\nthe great Shezo Wegey...'),  # opponent: このシェゾ・ウィグィ様のために、ここまでやってくるとは、
         (943, 1077, (231, 116), 'How adorable.'),  # opponent: かわいい奴よ。
         (1089, 1222, (95, 117), "Aren't you getting the wrong idea?"),  # Arle: 何か勘違いしてるんじゃない?
         (1241, 1431, (231, 116), 'Come now, no need to be shy.'),  # opponent: やれやれ、照れることはないぞ。
@@ -504,9 +515,9 @@ SUBTITLES = {
         (341, 675, (95, 117), "Eek! You're that pervert mage!"),  # Arle: ゲゲッ!君はいつかの変態魔導師!
         (701, 841, (223, 216), "Wh-who's the pervert here!?"),  # opponent: だ、だーれが変態だ!?
         (841, 1044, (95, 117), 'You are, you really are.'),  # Arle: キミ、キミ、キミだよ!
-        (1093, 1332, (223, 216), "I'm truly a pure mage of the dark arts!"),  # opponent: 俺様は由緒正しい闇の魔導師だ。
-        (1335, 1498, (223, 216), "Now it's come to this,\nI'll drag you down..."),  # opponent: こうなればお前も、ぷよぷよ地獄の暗黒面に、
-        (1500, 1620, (223, 216), '...to the depths of the Puyo Underworld!'),  # opponent: ひきずりこんでやる!
+        (1093, 1332, (223, 216), 'I am a Dark Mage of proud lineage!'),  # opponent: 俺様は由緒正しい闇の魔導師だ。
+        (1335, 1498, (223, 216), "Now that it's come to this,\nI'll drag you down too..."),  # opponent: こうなればお前も、ぷよぷよ地獄の暗黒面に、
+        (1500, 1620, (223, 216), '...to the dark side of the Puyo Underworld!'),  # opponent: ひきずりこんでやる!
     ],
     108: [  # SKELT_N.AIF
         (334, 536, (95, 117), 'Quit lounging there and get out of my way!'),  # Arle: そんなところでくつろいでないで道をあけてよ
@@ -609,8 +620,8 @@ SUBTITLES = {
         (450, 525, (95, 117), 'Huh?'),  # Arle: え?
         (500, 651, (192, 56), 'Yes, that must be it!'),  # opponent: そうよ、そうに決まってるわ。
         (662, 843, (192, 56), "How cruel! I haven't done anything!"),  # opponent: ひどいわ、私何もしてないのに。
-        (883, 1050, (95, 117), 'Ugh, what a pain...'),  # Arle: うわぁ、まいった。
-        (1081, 1292, (95, 117), "I didn't know she was this type..."),  # Arle: この子って、この手のタイプだったとは。
+        (835, 1037, (95, 117), 'Ugh, what a pain...'),  # Arle: うわぁ、まいった。
+        (1039, 1292, (95, 117), "I didn't know she was this type..."),  # Arle: この子って、この手のタイプだったとは。
     ],
     130: [  # UROKO_T.AIF
         (331, 540, (223, 127), "You... you came to bully me, didn't you?"),  # opponent: あなた、私をいじめに来たのね。
@@ -642,7 +653,7 @@ SUBTITLES = {
         (271, 635, (231, 114), 'Ohohoho! First, I commend you\nfor making it this far.'),  # opponent: おーっほっほ、まずはここにたどり着けたこと、褒めて差し上げますわ
         (617, 941, (95, 117), 'Ugh, why does everyone keep getting in my way?'),  # Arle: うーん、なんでみんな僕の邪魔ばっかりするの
         (958, 1163, (231, 114), 'How brazen, still saying such things!'),  # opponent: まあしらじらしい、まだそんなことをおっしゃるなんて、
-        (1165, 1413, (231, 114), 'Reflect on yourself\nunder a pile of Nuisance Puyo!'),  # opponent: おじゃまぷよ地獄で少しは反省なさい
+        (1165, 1413, (231, 114), 'Reflect on yourself a little\nin the Nuisance Puyo Underworld!'),  # opponent: おじゃまぷよ地獄で少しは反省なさい
     ],
     138: [  # WITCH_T.AIF
         (262, 492, (200, 114), "Isn't the view from here lovely?"),  # opponent: ここからの眺めって、素敵だと思いません?

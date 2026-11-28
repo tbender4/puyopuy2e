@@ -508,6 +508,8 @@ def test_game_arts():
     EFFECT.DAT rebuilt byte for byte from their parsed parts."""
     for data in (b'', b'a', bytes(5000), bytes(range(256)) * 40, os.urandom(3000) + bytes(3000), os.urandom(4090) * 2):
         assert game_arts.lzss_decompress(game_arts.lzss_compress(data))[0] == data
+        small = game_arts.lzss_compress_small(data)
+        assert game_arts.lzss_decompress(small)[0] == data and len(small) <= len(game_arts.lzss_compress(data))
     cells = [0x00020001] * 70 + [0x00020002, 0x40020003] + [0] * 5
     w, h, back, _ = game_arts.map_decode(game_arts.map_encode(7, 11, cells), 0)
     assert (w, h, back) == (7, 11, cells)
