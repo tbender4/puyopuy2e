@@ -317,6 +317,84 @@ def apply_schezo(ents, style=None):
     assert len(ents[SCHEZO]) <= SLOT
 
 
+# Other skit signs and sound effects: the kana stay, a small English word joins them (as PERVERT), in the sign's
+# own colour with a black edge. PUYOSHOW sprite set -> {sprite: (word, fill colour, where)}; where: 'above' (the
+# sprite is anchored bottom-centre: the canvas grows up and both ways, the kana stay put), 'below' (anchored top-left:
+# the canvas grows down) or (x, y), a free spot inside the sprite. Words: Domino054's where he has one.
+SIGN_WORDS = {
+    15: {10: ('GULP!', 9, 'above')},                                    # Draco: ぎくっ
+    47: {36: ('ROCK', 15, 'below')},                                    # Mini Zombie: 石 on the tag
+    61: {24: ('DONK!', 9, (16, 0))},                                    # Nasu Grave: どぎゃん (empty rows above it)
+    73: {33: ('UNBEATEN', 13, 'below'), 34: ('GUTS!', 9, 'below')},     # Lycanthrope: 全勝, ガッツ
+    91: {49: ('WAAAH!', 15, 'above'), 50: ('WAAAH!', 15, 'above')},     # Rulue: うわーん (two frames)
+    143: {25: ('HERE TOO.', 15, (12, 18))},                             # Zombie: ここにも。 (left of the vertical kana)
+}
+
+
+def apply_sign_words(ents):
+    for entry, signs in SIGN_WORDS.items():
+        b = ents[entry]
+        table, pixels = ga.sprites_parse(b)
+        for k, (word, fill, where) in signs.items():
+            _, w, h, addr = table[k]
+            old = _sprite_get(pixels, addr, w, h)
+            rows = [y for y in range(h) if any(old[y])]
+            cols = len(md_credits.text_columns(word))
+            if where == 'above':
+                grow_w = -(-max(0, cols + 4 - w) // 8) * 8               # both sides by a multiple of 4: the centre stays
+                grow_h = max(0, 12 - rows[0])
+                W, H, ox, oy = w + grow_w, h + grow_h, grow_w // 2, grow_h
+                x0, y0 = W // 2 - cols // 2, rows[0] + grow_h - 13
+            elif where == 'below':
+                W = w + -(-max(0, cols + 2 - w) // 8) * 8                  # wider to the right only
+                H, ox, oy = max(h, rows[-1] + 14), 0, 0
+                x0, y0 = min(max(1, (w - cols) // 2), W - cols - 1), rows[-1]
+            else:
+                W, H, ox, oy = w, h, 0, 0
+                x0, y0 = where
+            img = [[0] * W for _ in range(H)]
+            for y in range(h):
+                img[oy + y][ox:ox + w] = old[y]
+            _spleen(img, word, x0, y0, fill, 1)
+            data = bytearray(W * H // 2)
+            _sprite_put(data, 0, img)
+            b = ga.sprites_resize(b, pixels, k, W, H, data)
+        ents[entry] = ga.sprites_pack(b, pixels)
+        assert len(ents[entry]) <= SLOT, 'PUYOSHOW %d: %d bytes' % (entry, len(ents[entry]))
+    _apply_masked(ents)
+
+
+# Masked Satan (PUYOSHOW 43) spells マスクド one kana at a time, a 2 x 2 block: sprite -> (its word, its place in the
+# block). Each 32x32 kana sprite becomes the whole block (anchored top-left: script 42 moves them all to the block's
+# corner), so its word sits under the block at one spot; each word starts as the one before, so it covers it.
+MASKED_KANA = {55: ('MA', (32, 0)), 56: ('MAS', (32, 32)), 57: ('MASK', (0, 0)), 58: ('MASKED', (0, 32))}
+MASKED_MOVES = (b'\x0c\xc0\xff\xc0\xff\x09\x37', b'\x0c\xc0\xff\xe0\xff\x09\x38', b'\x0c\xa0\xff\xe0\xff\x09\x3a')
+MASKED_CORNER = b'\x0c\xa0\xff\xc0\xff'     # move (-96, -64): the block's top-left (where ク already goes)
+
+
+def _apply_masked(ents):
+    b = ents[43]
+    table, pixels = ga.sprites_parse(b)
+    kana = {k: _sprite_get(pixels, table[k][3], 32, 32) for k in MASKED_KANA}
+    ink = [x + bx for k, (_, (bx, _)) in MASKED_KANA.items() for x in range(32) if any(r[x] for r in kana[k])]
+    low = max(y + by for k, (_, (_, by)) in MASKED_KANA.items() for y in range(32) if any(kana[k][y]))
+    x0 = (min(ink) + max(ink) + 1) // 2 - len(md_credits.text_columns('MASKED')) // 2    # MASKED centred on the kana
+    W, H = 64, low + 14
+    for k, (word, (bx, by)) in MASKED_KANA.items():
+        img = [[0] * W for _ in range(H)]
+        for y in range(32):
+            img[by + y][bx:bx + 32] = kana[k][y]
+        _spleen(img, word, x0, low, 11, 1)
+        data = bytearray(W * H // 2)
+        _sprite_put(data, 0, img)
+        b = ga.sprites_resize(b, pixels, k, W, H, data)
+    ents[43] = ga.sprites_pack(b, pixels)
+    assert len(ents[43]) <= SLOT, 'PUYOSHOW 43: %d bytes' % len(ents[43])
+    for move in MASKED_MOVES:
+        assert ents[42].count(move) == 1
+        ents[42] = ents[42].replace(move, MASKED_CORNER + move[5:])
+
+
 # Skit voice subtitles (text/subtitles_en.py). A skit has no text box, so each line is a sprite added
 # to the skit's set and shown by an actor spliced into the script (saturn/skit_script_notes.md).
 # Lines that don't overlap in time share one actor (a lane), which moves to each line and shows a
@@ -408,7 +486,8 @@ def _add_captions(b, texts, pad_to=0, own_bank=False, small=False):
         # the 16-colour banks this set's palette holds; a full-screen picture (an 8 bpp sprite, mode bits in
         # its bank) has none, so its first 16 colours
         banks = {t[0] for t in table if t[0] + 16 <= len(palette)} or {0}
-        bank = max(banks, key=lambda k: max(light(k + v) for v in range(1, 16)))   # the whitest white
+        # the whitest white among the banks that also hold a dark colour (Draco and Dragon have an all-white bank)
+        bank = max(banks, key=lambda k: (min(light(k + v) for v in range(1, 16)) <= 20, max(light(k + v) for v in range(1, 16))))
         white = max(range(1, 16), key=lambda v: light(bank + v))
         black = min(range(1, 16), key=lambda v: light(bank + v))
     for _ in range(len(table), max(pad_to, len(table)) + 1):        # the padding, then the blank

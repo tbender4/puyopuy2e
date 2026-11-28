@@ -555,6 +555,7 @@ def build(src_bin, logo_mode=logo.DEFAULT_MODE):
     saturn_cutscenes.apply_captions(show)
     saturn_cutscenes.apply_aids(show)
     saturn_cutscenes.apply_schezo(show)
+    saturn_cutscenes.apply_sign_words(show)
     saturn_cutscenes.apply_subtitles(show)      # after apply_schezo: both grow the Schezo sprite set
 
     out = {'0': bytes(prog), 'H_PUYODT.BIN': saturn_arch.pack_hpuyodt(hp),
