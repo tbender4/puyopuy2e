@@ -318,50 +318,114 @@ def apply_schezo(ents, style=None):
 
 
 # Other skit signs and sound effects: the kana stay, a small English word joins them (as PERVERT), in the sign's
-# own colour with a black edge. PUYOSHOW sprite set -> {sprite: (word, fill colour, where)}; where: 'above' (the
-# sprite is anchored bottom-centre: the canvas grows up and both ways, the kana stay put), 'below' (anchored top-left:
-# the canvas grows down) or (x, y), a free spot inside the sprite. Words: Domino054's where he has one.
+# own colour with a black edge. PUYOSHOW sprite set -> {sprite: (word, fill colour, where, small, dx)}; where: 'above'
+# (the sprite is anchored bottom-centre: the canvas grows up and both ways, the kana stay put), 'below' (anchored
+# top-left: the canvas grows down) or (x, y), a free spot inside the sprite; small: the 6x12 font (capitals 8 px,
+# not 10); dx: a shift from the centre of the kana. Words: Domino054's where he has one.
 SIGN_WORDS = {
-    15: {10: ('GULP!', 9, 'above')},                                    # Draco: ぎくっ
-    47: {36: ('ROCK', 15, 'below')},                                    # Mini Zombie: 石 on the tag
-    61: {24: ('DONK!', 9, (16, 0))},                                    # Nasu Grave: どぎゃん (empty rows above it)
-    73: {33: ('UNBEATEN', 13, 'below'), 34: ('GUTS!', 9, 'below')},     # Lycanthrope: 全勝, ガッツ
-    91: {49: ('WAAAH!', 15, 'above'), 50: ('WAAAH!', 15, 'above')},     # Rulue: うわーん (two frames)
-    143: {25: ('HERE TOO.', 15, (12, 18))},                             # Zombie: ここにも。 (left of the vertical kana)
+    15: {10: ('GULP!', 9, 'above', False, 0)},                          # Draco: ぎくっ
+    61: {24: ('DONK!', 9, (16, 0), False, 0)},                          # Nasu Grave: どぎゃん (empty rows above it)
+    73: {33: ('UNDEFEATED', 13, 'below', True, 0),                      # Lycanthrope: 全勝 (all wins)
+         34: ('GUTS!', 9, 'below', True, -12)},                         # ガッツ: left, clear of the wolf's head
+    91: {49: ('WAAAH!', 15, 'above', True, 0), 50: ('WAAAH!', 15, 'above', True, 0)},     # Rulue: うわーん
 }
+SIGN_GAP = 2            # px between the kana and the word's edge
+
+
+def _word_layer(W, H, word, x0, y0, fill, small):
+    """word drawn at (x0, y0) (its ink's top-left) with a black edge, as a layer"""
+    cols = _small_text(word, fill) if small else [[fill if v else 0 for v in c] for c in md_credits.text_columns(word)]
+    top = min(y for c in cols for y, v in enumerate(c) if v)
+    layer = [[0] * W for _ in range(H)]
+    for x, col in enumerate(cols):
+        for y, v in enumerate(col):
+            if v:
+                layer[y0 + y - top][x0 + x] = fill
+    return labels.ring(layer, 1, {fill})
+
+
+def _word_size(word, small):
+    cols = _small_text(word) if small else md_credits.text_columns(word)
+    ink = [y for c in cols for y, v in enumerate(c) if v]
+    return len(cols), max(ink) - min(ink) + 1
 
 
 def apply_sign_words(ents):
     for entry, signs in SIGN_WORDS.items():
         b = ents[entry]
         table, pixels = ga.sprites_parse(b)
-        for k, (word, fill, where) in signs.items():
+        for k, (word, fill, where, small, dx) in signs.items():
             _, w, h, addr = table[k]
             old = _sprite_get(pixels, addr, w, h)
             rows = [y for y in range(h) if any(old[y])]
-            cols = len(md_credits.text_columns(word))
+            ink = [x for x in range(w) if any(old[y][x] for y in range(h))]
+            cols, tall = _word_size(word, small)
             if where == 'above':
                 grow_w = -(-max(0, cols + 4 - w) // 8) * 8               # both sides by a multiple of 4: the centre stays
-                grow_h = max(0, 12 - rows[0])
+                grow_h = max(0, tall + 2 + SIGN_GAP - rows[0])
                 W, H, ox, oy = w + grow_w, h + grow_h, grow_w // 2, grow_h
-                x0, y0 = W // 2 - cols // 2, rows[0] + grow_h - 13
+                x0, y0 = W // 2 - cols // 2 + dx, rows[0] + grow_h - SIGN_GAP - tall - 1
             elif where == 'below':
-                W = w + -(-max(0, cols + 2 - w) // 8) * 8                  # wider to the right only
-                H, ox, oy = max(h, rows[-1] + 14), 0, 0
-                x0, y0 = min(max(1, (w - cols) // 2), W - cols - 1), rows[-1]
+                x0 = (ink[0] + ink[-1] + 1) // 2 - cols // 2 + dx
+                W = w + -(-max(0, x0 + cols + 1 - w) // 8) * 8           # wider to the right only
+                x0 = max(1, x0)
+                H, ox, oy = max(h, rows[-1] + SIGN_GAP + tall + 3), 0, 0
+                y0 = rows[-1] + SIGN_GAP + 2
             else:
                 W, H, ox, oy = w, h, 0, 0
                 x0, y0 = where
+                y0 += 2                                                 # (x, y): the top of an 8x16 cell
             img = [[0] * W for _ in range(H)]
             for y in range(h):
                 img[oy + y][ox:ox + w] = old[y]
-            _spleen(img, word, x0, y0, fill, 1)
+            for y, row in enumerate(_word_layer(W, H, word, x0, y0, fill, small)):
+                for x, v in enumerate(row):
+                    if v:
+                        img[y][x] = v
             data = bytearray(W * H // 2)
             _sprite_put(data, 0, img)
             b = ga.sprites_resize(b, pixels, k, W, H, data)
         ents[entry] = ga.sprites_pack(b, pixels)
         assert len(ents[entry]) <= SLOT, 'PUYOSHOW %d: %d bytes' % (entry, len(ents[entry]))
     _apply_masked(ents)
+    _apply_rock(ents)
+    _apply_zombie(ents)
+
+
+# Mini Zombie (PUYOSHOW 47, sprite 36): the small 石 tag on the rock gets ROCK above it in the 6x12 font (8x16 is
+# larger than the tag); the tag is anchored top-left (script 46 spawns it at (166, 158)), so the canvas grows up by
+# ROCK_UP and the spawn moves up as much
+ROCK_UP = 12
+ROCK_SPAWN = bytes.fromhex('0315c801a6009e00')
+
+
+def _apply_rock(ents):
+    b = ents[47]
+    table, pixels = ga.sprites_parse(b)
+    _, w, h, addr = table[36]
+    old = _sprite_get(pixels, addr, w, h)
+    top = min(y for y in range(h) if any(old[y]))
+    img = [[0] * w for _ in range(h + ROCK_UP)]
+    for y in range(h):
+        img[ROCK_UP + y] = old[y][:]
+    cols = _small_text('ROCK', 15)
+    x0 = (w - len(cols)) // 2
+    layer = [[0] * w for _ in img]
+    for x, col in enumerate(cols):
+        for y, v in enumerate(col):
+            if v:
+                layer[ROCK_UP + top - 13 + y][x0 + x] = v
+    for y, row in enumerate(labels.ring(layer, 1, {15})):
+        for x, v in enumerate(row):
+            if v:
+                img[y][x] = v
+    data = bytearray(w * len(img) // 2)
+    _sprite_put(data, 0, img)
+    b = ga.sprites_resize(b, pixels, 36, w, len(img), data)
+    ents[47] = ga.sprites_pack(b, pixels)
+    assert len(ents[47]) <= SLOT
+    assert ents[46].count(ROCK_SPAWN) == 1
+    ents[46] = ents[46].replace(ROCK_SPAWN, ROCK_SPAWN[:6] + bytes([0x9e - ROCK_UP, 0]))
 
 
 # Masked Satan (PUYOSHOW 43) spells マスクド one kana at a time, a 2 x 2 block: sprite -> (its word, its place in the
@@ -393,6 +457,36 @@ def _apply_masked(ents):
     for move in MASKED_MOVES:
         assert ents[42].count(move) == 1
         ents[42] = ents[42].replace(move, MASKED_CORNER + move[5:])
+
+
+# Zombie (PUYOSHOW 143, sprite 25): the vertical ここにも。 beside the red arrow becomes plain text, as Cockadoodle's
+# captions: HERE / TOO. in white with a black edge, in the 6x12 font, where the kana were (right of x ZOMBIE_X above
+# the arrow's top row ZOMBIE_Y, right of the arrow's tip ZOMBIE_TIP below it)
+ZOMBIE_X, ZOMBIE_Y, ZOMBIE_TIP = 92, 40, 102
+
+
+def _apply_zombie(ents):
+    b = ents[143]
+    table, pixels = ga.sprites_parse(b)
+    _, w, h, addr = table[25]
+    img = _sprite_get(pixels, addr, w, h)
+    box = [(x, y) for y in range(h) for x in range(ZOMBIE_X if y < ZOMBIE_Y else ZOMBIE_TIP, w) if img[y][x]]
+    x_lo, x_hi = min(x for x, _ in box), max(x for x, _ in box)
+    y_lo, y_hi = min(y for _, y in box), max(y for _, y in box)
+    for x, y in box:
+        img[y][x] = 0
+    lines = ('HERE', 'TOO.')
+    y0 = (y_lo + y_hi + 1) // 2 - 11                       # two 8 px lines, 6 px apart, centred on the kana
+    for n, line in enumerate(lines):
+        cols, _ = _word_size(line, True)
+        x0 = min((x_lo + x_hi + 1) // 2 - cols // 2, w - cols - 1)
+        for y, row in enumerate(_word_layer(w, h, line, x0, y0 + 14 * n, 15, True)):
+            for x, v in enumerate(row):
+                if v:
+                    img[y][x] = v
+    _sprite_put(pixels, addr, img)
+    ents[143] = ga.sprites_pack(b, pixels)
+    assert len(ents[143]) <= SLOT
 
 
 # Skit voice subtitles (text/subtitles_en.py). A skit has no text box, so each line is a sprite added

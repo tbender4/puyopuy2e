@@ -78,7 +78,7 @@ output Track 1 instead of copying 606 MB.
 - Shezo's ヘンタイ / タイヘン signs keep the Japanese (the swap is the joke) with `PERVERT` /
   `TERRIBLE` above them
 - The other signs and sound effects keep the Japanese with a small English word: `GULP!` (Draco), `MA`, `MAS`, `MASK`, `MASKED`
-  (Masked Satan spelling マスクド), `ROCK` (Mini Zombie), `DONK!` (Nasu Grave), `UNBEATEN` and `GUTS!` (Lycanthrope),
+  (Masked Satan spelling マスクド), `ROCK` (Mini Zombie), `DONK!` (Nasu Grave), `UNDEFEATED` and `GUTS!` (Lycanthrope),
   `WAAAH!` (Rulue), `HERE TOO.` (Zombie)
 - English subtitles for the voice lines of all 74 skits (Normal and Tsuu mode). `STORY DEMO` on OPTIONS page 2 has new options: 
     - `SUBTITLES`: at the bottom (default),
