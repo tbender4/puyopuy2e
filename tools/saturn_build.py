@@ -3,7 +3,7 @@
 Patches /0;1 ASCII strings, sprite lists and the tutorial text engine, ports the shared MD/Arcade
 English graphics across the 8 Bits Lab .BIN banks (reusing the Arcade/MD helpers directly), draws
 the Saturn-native H_PUYODT.BIN screens and the Game Arts files (PUYOSHOW.FLD, EFFECT.DAT)."""
-import os, struct, sys
+import functools, os, struct, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -462,6 +462,22 @@ def _apply_special_rules(hdr_map, hdr_tiles, rule_map, rule_tiles):
     assert not any(rule_tiles[0x9c * gfx.TILE:0x9d * gfx.TILE])
 
 
+@functools.lru_cache(maxsize=1)
+def _game_arts(puyoshow, effect):
+    """6. Milestone D: Game Arts files (PUYOSHOW.FLD staff roll and cutscene art, EFFECT.DAT caption); the slowest
+    step and independent of the logo mode, so built once per process"""
+    show = game_arts.fld_parse(puyoshow)
+    saturn_credits.apply(show)
+    saturn_cutscenes.apply_signs(show)
+    saturn_cutscenes.apply_captions(show)
+    saturn_cutscenes.apply_aids(show)
+    saturn_cutscenes.apply_schezo(show)
+    saturn_cutscenes.apply_sign_words(show)
+    saturn_cutscenes.apply_subtitles(show)      # after apply_schezo: both grow the Schezo sprite set
+    return {'PUYOSHOW.FLD': game_arts.fld_pack(show, struct.unpack_from('>I', puyoshow, 0)[0]),
+            'EFFECT.DAT': saturn_cutscenes.apply_effect(effect)}
+
+
 def build(src_bin, logo_mode=logo.DEFAULT_MODE):
     """Build patched Saturn files from Track 1 .bin. Returns dict {iso_name: bytes}."""
     with open(src_bin, 'rb') as f:
@@ -548,19 +564,7 @@ def build(src_bin, logo_mode=logo.DEFAULT_MODE):
     saturn_ui.apply_demo_g02_start(banks['DEMO_G02.BIN']['chunks'][12], banks['DEMO_G02.BIN']['chunks'][13])
     saturn_ui.apply_demo_g02_nomi(banks['DEMO_G02.BIN']['chunks'][12])
 
-    # 6. Milestone D: Game Arts files (PUYOSHOW.FLD staff roll and cutscene art, EFFECT.DAT caption)
-    show = game_arts.fld_parse(puyoshow)
-    saturn_credits.apply(show)
-    saturn_cutscenes.apply_signs(show)
-    saturn_cutscenes.apply_captions(show)
-    saturn_cutscenes.apply_aids(show)
-    saturn_cutscenes.apply_schezo(show)
-    saturn_cutscenes.apply_sign_words(show)
-    saturn_cutscenes.apply_subtitles(show)      # after apply_schezo: both grow the Schezo sprite set
-
-    out = {'0': bytes(prog), 'H_PUYODT.BIN': saturn_arch.pack_hpuyodt(hp),
-           'PUYOSHOW.FLD': game_arts.fld_pack(show, struct.unpack_from('>I', puyoshow, 0)[0]),
-           'EFFECT.DAT': saturn_cutscenes.apply_effect(effect)}
+    out = {'0': bytes(prog), 'H_PUYODT.BIN': saturn_arch.pack_hpuyodt(hp), **_game_arts(puyoshow, effect)}
     for name in TARGET_BANKS:
         out[name] = saturn_arch.pack_bank(banks[name])
     return out

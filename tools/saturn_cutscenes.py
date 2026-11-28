@@ -610,9 +610,16 @@ def apply_subtitles(ents):
                     out = min(out, _add_captions(ents[entry + 1], texts, small=True), key=lambda o: len(o[0]))
                 return out
             set_, blank, frames = fit(texts)
-            while len(set_) > SLOT and extra:       # still too big: the last SPEAKER-only texts fall back to the shared one
-                k = max(i for i, line in enumerate(lines) if len(line) > 4)
-                lines[k] = lines[k][:4]
+            if len(set_) > SLOT and extra:          # too big: keep the first SPEAKER-only texts that fit, the rest share
+                speaker = [i for i, line in enumerate(lines) if len(line) > 4]
+                keep = 0
+                while keep < len(speaker):
+                    trial = [line if len(line) < 5 or i in speaker[:keep + 1] else line[:4] for i, line in enumerate(lines)]
+                    out = fit([line[3] for line in trial] + [line[4] for line in trial if len(line) > 4])
+                    if len(out[0]) > SLOT:
+                        break
+                    keep += 1
+                lines = [line if len(line) < 5 or i in speaker[:keep] else line[:4] for i, line in enumerate(lines)]
                 extra = [line[4] for line in lines if len(line) > 4]
                 set_, blank, frames = fit([line[3] for line in lines] + extra)
             ents[entry + 1] = set_
